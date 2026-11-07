@@ -92,6 +92,45 @@ CRAB = [["..E...E..",  # 게: 걷는 두 장면
          "..RRRRR..",
          "R.R...R.R"]]
 CRAB_COLORS = {"R": (230, 85, 60), "D": (165, 50, 40), "E": (20, 20, 30)}
+TURTLE = [[".......GGGGGG.......",  # 거북이 (왼쪽을 봄): 지느러미 두 장면. G=등딱지, D=무늬, L=테두리, S=피부
+           ".....GGDDGGDDGG.....",
+           "....GDDGGDDGGDDG....",
+           "SS.GGGGDDGGDDGGGG...",
+           "SSSGDDGGGGGGGGDDGG..",
+           "SESLLLLLLLLLLLLLLLSS",
+           "SSS.SS.......SSS....",
+           "...SSS........SSS...",
+           "..SSS..........SS..."],
+          [".......GGGGGG.......",
+           ".....GGDDGGDDGG.....",
+           "..SS.GDDGGDDGGDDG...",
+           "SSSSGGGGDDGGDDGGGG..",
+           "SSSGDDGGGGGGGGDDGG..",
+           "SESLLLLLLLLLLLLLLLSS",
+           "SSSSSS......SSSSS...",
+           "....................",
+           "...................."]]
+TURTLE_COLORS = {"G": (95, 125, 60), "D": (150, 165, 80), "L": (210, 200, 140), "S": (140, 195, 150), "E": (20, 20, 30)}
+OCTOPUS = [["...OOOOO...",  # 문어: 다리 두 장면 (모래 위 / 헤엄칠 때)
+            "..OOLOOOO..",
+            ".OOOOOOOOO.",
+            ".OWEOOOWEO.",
+            ".OOOOOOOOO.",
+            "..OOOOOOO..",
+            ".O.O.O.O.O.",
+            "O..O.O.O..O",
+            ".O.O...O.O."],
+           ["...OOOOO...",
+            "..OOLOOOO..",
+            ".OOOOOOOOO.",
+            ".OWEOOOWEO.",
+            ".OOOOOOOOO.",
+            "..OOOOOOO..",
+            "..O.O.O.O..",
+            "..O.O.O.O..",
+            ".O..O.O..O.",
+            ".O..O.O..O."]]
+OCTO_COLORS = [(220, 90, 80), (240, 150, 70), (175, 105, 205)]  # 기분 따라 몸 색이 바뀐다
 
 FISH_COLORS = [  # (몸, 지느러미, 무늬)
     ((255, 140, 66), (255, 196, 120), (255, 255, 255)),   # 주황
@@ -111,7 +150,7 @@ class Fish:
     colors: tuple
     phase: float = field(default_factory=lambda: random.uniform(0, 6.28))
     target: tuple[float, float] | None = None
-    kind: str = "fish"  # fish | puffer
+    kind: str = "fish"  # fish | puffer | turtle
     puff: float = 0.0  # 복어가 부푼 채로 남은 시간
 
 
@@ -132,11 +171,23 @@ class Crab:
 
 
 @dataclass
+class Octopus:
+    x: float
+    y: float
+    vx: float = 3.0
+    vy: float = 0.0
+    walk: float = 0.0
+    rest: float = 0.0
+    color: int = 0
+    shade: tuple = OCTO_COLORS[0]
+
+
+@dataclass
 class Particle:
     x: float
     y: float
     vy: float
-    kind: str  # bubble | food | heart
+    kind: str  # bubble | food | heart | ink
     life: float = 99.0
 
 
@@ -162,6 +213,9 @@ class Aquarium:
                                   PUFFER, PUFFER_COLORS, kind="puffer"))
         self.jellies = [Jelly(rnd.uniform(10, W - 20), rnd.uniform(8, 40), JELLY_COLORS[i % 2]) for i in range(2)]
         self.crabs = [Crab(rnd.uniform(5, W - 15), rnd.choice([-1, 1]) * rnd.uniform(4, 7)) for _ in range(2)]
+        self.fish.append(Fish(rnd.uniform(10, W - 30), rnd.uniform(12, 40), rnd.choice([-1, 1]) * rnd.uniform(2.5, 3.5),
+                              TURTLE[0], TURTLE_COLORS, kind="turtle"))  # 거북이는 느긋하게
+        self.octopus = Octopus(rnd.uniform(10, W - 25), SAND_Y - len(OCTOPUS[0]) + 1)
         self.parts: list[Particle] = []
         self.weeds = [(x, rnd.randint(10, 26), rnd.choice([(46, 160, 90), (70, 190, 110), (30, 130, 80)]))
                       for x in sorted(rnd.sample(range(3, W - 3), 14))]
@@ -188,16 +242,20 @@ class Aquarium:
             if near and (near.x - f.x) ** 2 + (near.y - f.y) ** 2 < 60 ** 2:  # 먹이 쫓기
                 dx, dy = near.x - f.x, near.y - f.y
                 d = math.hypot(dx, dy) or 1
-                f.vx = math.copysign(max(abs(f.vx), 14), dx)
-                f.x += dx / d * 16 * dt
-                f.y += dy / d * 12 * dt
-                if d < 3:  # 냠
+                slow = 0.45 if f.kind == "turtle" else 1.0
+                if f.kind != "turtle":
+                    f.vx = math.copysign(max(abs(f.vx), 14), dx)
+                elif abs(dx) > 2:
+                    f.vx = math.copysign(abs(f.vx), dx)
+                f.x += dx / d * 16 * slow * dt
+                f.y += dy / d * 12 * slow * dt
+                if d < (6 if f.kind == "turtle" else 3):  # 냠
                     near.life = 0
                     self.parts.append(Particle(f.x, f.y - 3, -6, "heart", 1.2))
             else:
                 f.x += f.vx * dt
                 f.y += math.sin(self.t * 1.6 + f.phase) * 2.2 * dt
-                if self.rnd.random() < 0.004:  # 가끔 방향 전환
+                if self.rnd.random() < (0.0015 if f.kind == "turtle" else 0.004):  # 가끔 방향 전환
                     f.vx = -f.vx
             w = len(f.sprite[0])
             if f.x < 1 or f.x > W - w - 1:
@@ -239,6 +297,7 @@ class Aquarium:
                 c.rest = self.rnd.uniform(1, 3)
                 if self.rnd.random() < 0.5:
                     c.vx = -c.vx
+        self._step_octopus(dt)
         # 거품: 수초 아래·무작위에서 생성
         if self.rnd.random() < 0.35:
             self.parts.append(Particle(self.rnd.uniform(2, W - 2), SAND_Y - 1, -self.rnd.uniform(6, 12), "bubble"))
@@ -251,10 +310,60 @@ class Aquarium:
             elif p.kind == "food":
                 p.y = min(p.y + p.vy * dt, SAND_Y - 1)
                 p.life -= dt * (0.08 if p.y < SAND_Y - 1 else 0.4)
+            elif p.kind == "ink":  # 먹물: 조금 퍼지며 옅어짐
+                p.x += math.sin(p.y * 0.7 + self.t) * 0.2
+                p.y += p.vy * dt
+                p.life -= dt
             else:  # heart
                 p.y += p.vy * dt
                 p.life -= dt
         self.parts = [p for p in self.parts if p.life > 0]
+
+    def _step_octopus(self, dt: float) -> None:
+        """문어: 모래 위를 기다가 가끔 위로 쭉 솟구치고(가끔 먹물), 천천히 내려앉는다. 몸 색도 바뀐다."""
+        o = self.octopus
+        floor = SAND_Y - len(OCTOPUS[0]) + 1
+        target = OCTO_COLORS[o.color]  # 색은 천천히 섞여서 바뀐다
+        o.shade = tuple(int(a + (b - a) * min(1.0, dt * 1.5)) for a, b in zip(o.shade, target))
+        if self.rnd.random() < 0.006:
+            o.color = (o.color + 1) % len(OCTO_COLORS)
+        if o.y < floor or o.vy < 0:  # 헤엄치는 중
+            o.vy = min(o.vy + 18 * dt, 5)
+            o.y += o.vy * dt
+            o.x += o.vx * 1.5 * dt
+            o.walk += dt
+            if o.y >= floor:
+                o.y, o.vy = floor, 0
+        else:
+            sand_food = [p for p in self.parts if p.kind == "food" and p.y >= SAND_Y - 2]
+            near = min(sand_food, key=lambda p: abs(p.x - o.x - 5), default=None)
+            if near and abs(near.x - o.x - 5) < 35:
+                o.rest = 0
+                o.vx = math.copysign(4, near.x - o.x - 5)
+                if abs(near.x - o.x - 5) < 2:
+                    near.life = 0
+                    self.parts.append(Particle(o.x + 5, o.y - 2, -5, "heart", 1.0))
+            if o.rest > 0:
+                o.rest -= dt
+            else:
+                o.x += o.vx * dt
+                o.walk += dt
+                r = self.rnd.random()
+                if r < 0.004:  # 솟구치기
+                    o.vy = -self.rnd.uniform(22, 30)
+                    o.vx = self.rnd.choice([-1, 1]) * self.rnd.uniform(3, 6)
+                    if self.rnd.random() < 0.4:  # 가끔 먹물
+                        for _ in range(6):
+                            self.parts.append(Particle(o.x + 5 + self.rnd.uniform(-3, 3), o.y + 8 + self.rnd.uniform(0, 3),
+                                                       self.rnd.uniform(-1, 2), "ink", self.rnd.uniform(1.5, 2.5)))
+                elif r < 0.012:
+                    o.rest = self.rnd.uniform(1.5, 4)
+                    if self.rnd.random() < 0.5:
+                        o.vx = -o.vx
+        if o.x < 1 or o.x > W - 12:
+            o.vx = -o.vx
+            o.x = min(max(o.x, 1), W - 12)
+        o.y = max(o.y, 4)
 
     # ---- 그리기 ----
     def canvas(self) -> Image.Image:
@@ -285,6 +394,12 @@ class Aquarium:
         for c in self.crabs:  # 게는 수초 앞, 모래 위
             frame = CRAB[int(c.walk * 6) % 2] if c.rest <= 0 else CRAB[0]
             _sprite(img, frame, int(c.x), SAND_Y - len(frame) + 2, CRAB_COLORS)
+        o = self.octopus
+        swimming = o.y < SAND_Y - len(OCTOPUS[0]) + 1
+        frame = OCTOPUS[1] if swimming or (o.rest <= 0 and int(o.walk * 4) % 2) else OCTOPUS[0]
+        light = tuple(min(255, v + 50) for v in o.shade)
+        _sprite(img, frame, int(o.x), int(o.y) - (len(frame) - len(OCTOPUS[0])) * (0 if swimming else 1),
+                {"O": o.shade, "L": light, "W": (240, 240, 240), "E": (20, 20, 30)})
         for j in self.jellies:  # 해파리는 물고기 뒤
             frame = JELLY[1] if math.sin(j.phase * 2.4) > 0.6 else JELLY[0]
             _sprite(img, frame, int(j.x), int(j.y), j.colors)
@@ -296,11 +411,23 @@ class Aquarium:
                 img.putpixel((x, y), (200, 235, 255))
             elif p.kind == "food":
                 img.putpixel((x, y), (150, 90, 40))
+            elif p.kind == "ink":
+                a = max(0.0, min(1.0, p.life / 2)) * 1.2
+                a = min(a, 1.0)
+                for dx, dy in ((0, 0), (1, 0), (0, 1), (1, 1)):
+                    if 0 <= x + dx < W and 0 <= y + dy < H:
+                        r, g, b = img.getpixel((x + dx, y + dy))
+                        img.putpixel((x + dx, y + dy), (int(r * (1 - 0.7 * a) + 25 * 0.7 * a), int(g * (1 - 0.7 * a) + 20 * 0.7 * a),
+                                                        int(b * (1 - 0.7 * a) + 40 * 0.7 * a)))
             else:
                 for dx, dy in ((0, 0), (-1, -1), (1, -1)):
                     if 0 <= x + dx < W and 0 <= y + dy < H:
                         img.putpixel((x + dx, y + dy), (255, 120, 150))
         for f in self.fish:
+            if f.kind == "turtle":
+                f.sprite = TURTLE[int(self.t * 2.5) % 2]
+                _sprite(img, f.sprite, int(f.x), int(f.y), f.colors, flip=f.vx > 0)
+                continue
             if f.kind == "puffer":
                 body, fin, mark = f.colors
                 _sprite(img, f.sprite, int(f.x), int(f.y),

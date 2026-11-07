@@ -270,7 +270,7 @@ Korean stocks coloured by daily change: **red is up, blue is down** (the Korean 
 
 <img src="images/page7-aquarium.gif" width="560">
 
-The whole deck (13 keys plus the wide tile) becomes **one screen** showing a pixel-art aquarium. Fish swim across key borders, seaweed sways and bubbles rise. **Pufferfish** sometimes puff up with spikes, **jellyfish** pulse and drift, and **crabs** scuttle sideways on the sand and pick up food that sinks to the bottom.
+The whole deck (13 keys plus the wide tile) becomes **one screen** showing a pixel-art aquarium. Fish swim across key borders, seaweed sways and bubbles rise. **Pufferfish** sometimes puff up with spikes, **jellyfish** pulse and drift, and **crabs** scuttle sideways on the sand and pick up food that sinks to the bottom. A **turtle** cruises slowly, and an **octopus** crawls on the sand, now and then shooting upward with a puff of ink and changing colour.
 
 | Action | Result |
 |---|---|

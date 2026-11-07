@@ -141,6 +141,8 @@ def aquarium_gif(path: str) -> None:
         aq.step(0.2)
         if i == 12:
             aq.feed(6)
+        if i == 4:  # 문어가 솟구치는 장면도 담기
+            aq.octopus.vy, aq.octopus.vx = -26, 4
         tiles, wide = aq.tiles()
         frames.append(device_mockup({k: _img_button(v) for k, v in tiles.items()}, wide, 0.5))
     frames[0].save(path, save_all=True, append_images=frames[1:], duration=200, loop=0, optimize=True)

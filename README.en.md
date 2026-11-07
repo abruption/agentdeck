@@ -116,7 +116,7 @@ Korean stocks coloured by daily change, like [HeatTab](https://heattab.app) (red
 <td valign="top">
 
 ### 7 · Aquarium screensaver
-The whole deck becomes **one aquarium**. Fish, pufferfish, jellyfish and crabs roam across the keys, and pressing a key drops **food** there. It starts by itself when the deck sits idle and steps aside when an alert comes in.
+The whole deck becomes **one aquarium**. Fish, pufferfish, jellyfish, crabs, a turtle and an octopus roam across the keys, and pressing a key drops **food** there. It starts by itself when the deck sits idle and steps aside when an alert comes in.
 
 <sub>→ [Guide: aquarium](docs/GUIDE.en.md#47-aquarium-screensaver-page-7)</sub>
 
