@@ -26,7 +26,7 @@
 
 | 준비물 | 설명 |
 |---|---|
-| **Ulanzi Stream Controller D200** | 버튼 13개와 넓은 화면 칸이 있는 모델이에요. [알리익스프레스](https://www.aliexpress.com/w/wholesale-ulanzi-d200.html)나 [Ulanzi 공식 스토어](https://www.ulanzi.com/products/stream-deck-d200)에서 살 수 있어요. ⚠️ 이름이 비슷한 **D200X**(노브 포함)와 **D200H**는 다른 모델이라 동작을 확인하지 않았습니다. 상품명에 **D200**만 있는지 확인하세요. |
+| **Ulanzi Stream Controller D200** | 버튼 13개와 넓은 화면 칸이 있는 모델이에요. [알리익스프레스](https://ko.aliexpress.com/w/wholesale-ulanzi-%EC%8A%A4%ED%8A%B8%EB%A6%BC%EB%8D%B1.html)나 [Ulanzi 공식 스토어](https://www.ulanzi.com/products/stream-deck-d200)에서 살 수 있어요. ⚠️ 이름이 비슷한 **D200X**(노브 포함)와 **D200H**는 다른 모델이라 동작을 확인하지 않았습니다. 상품명에 **D200**만 있는지 확인하세요. |
 | **macOS 컴퓨터** | Apple Silicon 맥에서 테스트했어요. |
 | **USB 케이블** | 장치에 들어 있는 USB-C 케이블을 맥에 직접 연결하세요. |
 

@@ -34,7 +34,7 @@ Ulanzi D200을 공식 앱 없이 직접 제어하는 macOS 대시보드
 
 ## 🛒 준비물
 
-- **Ulanzi Stream Controller D200**: [알리익스프레스](https://www.aliexpress.com/w/wholesale-ulanzi-d200.html) · [Ulanzi 공식 스토어](https://www.ulanzi.com/products/stream-deck-d200)
+- **Ulanzi Stream Controller D200**: [알리익스프레스](https://ko.aliexpress.com/w/wholesale-ulanzi-%EC%8A%A4%ED%8A%B8%EB%A6%BC%EB%8D%B1.html) · [Ulanzi 공식 스토어](https://www.ulanzi.com/products/stream-deck-d200)
   - ⚠️ 이름이 비슷한 **D200X**(노브 포함)와 **D200H**는 다른 모델이라 동작을 확인하지 않았어요.
 - macOS(Apple Silicon), Python 3.11 이상
 
