@@ -216,15 +216,18 @@ def game_gif(path: str) -> None:
     snap(700)
     g.phase, g.result, g.win, g.coins, g.win_until = "done", "win", 2, 74, _t.time() + 99
     snap(1500)
-    # 비디오 포커: 킵 고르고 교체 → 풀하우스
-    g.mode, g.win_until, g.bet_now, g.coins = "poker", 0, 2, 72
-    g.hand, g.held, g.poker_win, g.phase = [("K", "♥"), ("4", "♠"), ("K", "♦"), ("K", "♠"), ("9", "♣")], [False] * 5, None, "play"
-    snap(900)
+    # 포커 대결: 상대 두 장이 보이고, 내 카드를 눌러 킵 → 교체 → 승부
+    g.mode, g.win_until, g.bet_now, g.coins, g.poker_cmp = "poker", 0, 2, 72, 0
+    g.opp = [("Q", "♣"), ("Q", "♦"), ("5", "♠"), ("9", "♥"), ("2", "♣")]
+    g.hand, g.held, g.phase = [("K", "♥"), ("4", "♠"), ("K", "♦"), ("K", "♠"), ("9", "♣")], [False] * 5, "play"
+    snap(1000)
     for k in (0, 2, 3):
         g.held[k] = True
         snap(350)
-    g.hand, g.phase = [("K", "♥"), ("4", "♣"), ("K", "♦"), ("K", "♠"), ("4", "♥")], "done"
-    g.poker_win, g.coins = ("풀하우스", 9), 90
+    g.hand = [("K", "♥"), ("4", "♣"), ("K", "♦"), ("K", "♠"), ("4", "♥")]
+    g.opp, g.opp_swapped, g.phase = [("Q", "♣"), ("Q", "♦"), ("J", "♠"), ("Q", "♥"), ("3", "♦")], 3, "opp"
+    snap(900)
+    g.phase, g.poker_cmp, g.win, g.coins = "done", 1, 18, 92
     snap(1800)
     frames[0].save(path, save_all=True, append_images=frames[1:], duration=ms, loop=0, optimize=True)
 
