@@ -131,6 +131,17 @@ OCTOPUS = [["...OOOOO...",  # 문어: 다리 두 장면 (모래 위 / 헤엄칠 
             ".O..O.O..O.",
             ".O..O.O..O."]]
 OCTO_COLORS = [(220, 90, 80), (240, 150, 70), (175, 105, 205)]  # 기분 따라 몸 색이 바뀐다
+SHARK = ["..........FF.............",  # 상어 (왼쪽을 봄). B=등, L=배, G=아가미, F=지느러미, T=꼬리
+         ".........FFF.............",
+         "....BBBBBBBBBBBBB.......T",
+         "..BBBBBBBBBBBBBBBBB....TT",
+         ".BBEBBGBGBBBBBBBBBBBBBTT.",
+         "BBBBBBGBGBBBBBBBBBBBBBTT.",
+         ".LLLLLLLLLLLLBBBBBB...TTT",
+         "..LLLLLLLLLLB..........TT",
+         "......FF......F.........."]
+SHARK_COLORS = {"B": (110, 130, 155), "L": (215, 225, 235), "G": (70, 85, 105), "F": (90, 108, 132),
+                "T": (95, 115, 140), "E": (15, 15, 25)}
 
 FISH_COLORS = [  # (몸, 지느러미, 무늬)
     ((255, 140, 66), (255, 196, 120), (255, 255, 255)),   # 주황
@@ -215,6 +226,8 @@ class Aquarium:
         self.crabs = [Crab(rnd.uniform(5, W - 15), rnd.choice([-1, 1]) * rnd.uniform(4, 7)) for _ in range(2)]
         self.fish.append(Fish(rnd.uniform(10, W - 30), rnd.uniform(12, 40), rnd.choice([-1, 1]) * rnd.uniform(2.5, 3.5),
                               TURTLE[0], TURTLE_COLORS, kind="turtle"))  # 거북이는 느긋하게
+        self.fish.append(Fish(rnd.uniform(10, W - 35), rnd.uniform(14, 36), rnd.choice([-1, 1]) * 6,
+                              SHARK, SHARK_COLORS, kind="shark"))  # 상어: 순찰하다 가끔 돌진
         self.octopus = Octopus(rnd.uniform(10, W - 25), SAND_Y - len(OCTOPUS[0]) + 1)
         self.parts: list[Particle] = []
         self.weeds = [(x, rnd.randint(10, 26), rnd.choice([(46, 160, 90), (70, 190, 110), (30, 130, 80)]))
@@ -237,8 +250,22 @@ class Aquarium:
     def step(self, dt: float) -> None:
         self.t += dt
         foods = [p for p in self.parts if p.kind == "food"]
+        shark = next((f for f in self.fish if f.kind == "shark"), None)
+        if shark:  # 상어: 평소엔 천천히, 가끔 쏜살같이
+            if shark.puff > 0:
+                shark.puff -= dt
+            elif self.rnd.random() < 0.006:
+                shark.puff = self.rnd.uniform(1.2, 2.0)
+            shark.vx = math.copysign(20 if shark.puff > 0 else 6, shark.vx)
         for f in self.fish:
-            near = min(foods, key=lambda p: (p.x - f.x) ** 2 + (p.y - f.y) ** 2, default=None)
+            if shark and f.kind == "fish":  # 상어가 가까우면 작은 물고기는 흩어진다
+                sx, sy = shark.x + 12, shark.y + 4
+                dx, dy = f.x + 6 - sx, f.y + 3 - sy
+                if dx * dx + dy * dy < 26 ** 2:
+                    f.vx = math.copysign(max(abs(f.vx), 16), dx or 1)
+                    f.x += f.vx * dt
+                    f.y += math.copysign(10, dy or 1) * dt
+            near = None if f.kind == "shark" else min(foods, key=lambda p: (p.x - f.x) ** 2 + (p.y - f.y) ** 2, default=None)
             if near and (near.x - f.x) ** 2 + (near.y - f.y) ** 2 < 60 ** 2:  # 먹이 쫓기
                 dx, dy = near.x - f.x, near.y - f.y
                 d = math.hypot(dx, dy) or 1
@@ -424,6 +451,9 @@ class Aquarium:
                     if 0 <= x + dx < W and 0 <= y + dy < H:
                         img.putpixel((x + dx, y + dy), (255, 120, 150))
         for f in self.fish:
+            if f.kind == "shark":
+                _sprite(img, f.sprite, int(f.x), int(f.y), f.colors, flip=f.vx > 0)
+                continue
             if f.kind == "turtle":
                 f.sprite = TURTLE[int(self.t * 2.5) % 2]
                 _sprite(img, f.sprite, int(f.x), int(f.y), f.colors, flip=f.vx > 0)
