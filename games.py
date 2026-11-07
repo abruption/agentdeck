@@ -1,4 +1,4 @@
-"""게임 페이지: 두더지 잡기 · 순서 기억 · 짝 맞추기 · 슬롯머신.
+"""게임 페이지: 두더지 잡기 · 순서 기억 · 짝 맞추기 · 슬롯머신 · 블랙잭.
 
 판은 위 두 줄 10칸(0~9). 아래 줄은 페이지 넘김 버튼 그대로, 넓은 칸은 점수판.
 입력은 누르는 순간(press)에 처리해 반응을 빠르게 한다. 화면은 상태가 바뀔 때만 다시 보낸다.
@@ -24,7 +24,7 @@ SIZE = 196
 WIDE = (458, 196)
 SAVE = Path.home() / ".cache" / "d200" / "games.json"
 
-GAMES = ["mole", "simon", "pairs", "slot"]  # 메뉴 열 순서 (윗칸·아랫칸 어느 쪽을 눌러도 시작)
+GAMES = ["mole", "simon", "pairs", "slot", "bj"]  # 메뉴 열 순서 (윗칸·아랫칸 어느 쪽을 눌러도 시작)
 LOWER_IS_BETTER = {"pairs"}  # 짝 맞추기는 시도 횟수가 적을수록 좋은 기록
 EMOJI_FONT = "/System/Library/Fonts/Apple Color Emoji.ttc"
 PAIR_CARDS = ["🐟", "🐙", "🦀", "🐢", "🦈"]  # 어항 친구들 5쌍
@@ -33,7 +33,11 @@ SLOT_PAY = {"7": 50, "💎": 30, "⭐": 15, "🔔": 10, "🍋": 6, "🍒": 5}  #
 SLOT_REELS = (1, 2, 3)  # 릴이 보이는 칸 (윗줄 가운데)
 SLOT_STOPS = (6, 7, 8)  # 각 릴을 멈추는 버튼 (바로 아래 칸)
 SLOT_LEVERS = (0, 4, 5, 9)  # 돌리기 (양쪽 끝 칸)
-SLOT_START = 20
+SLOT_START = 20  # 슬롯·블랙잭이 같이 쓰는 코인
+BJ_HIT, BJ_STAND = 4, 9  # 블랙잭: 윗줄 끝 = 한 장 더, 아랫줄 끝 = 그만 (베팅 중엔 딜 / 베팅액)
+BJ_BETS = [1, 2, 5, 10]
+SUITS = "♠♥♦♣"
+RANKS = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"]
 MOLE_SEC = 30  # 두더지 한 판 길이
 SIMON_COLORS = ["#f7768e", "#ff9e64", "#e0af68", "#9ece6a", "#73daca",
                 "#7dcfff", "#7aa2f7", "#bb9af7", "#c0caf5", "#f4b8e4"]
@@ -116,7 +120,7 @@ def simon_tile(idx: int, lit: bool, mark: str = "") -> bytes:
 def menu_tile(kind: str, best: str) -> bytes:
     img = Image.new("RGB", (SIZE, SIZE), (24, 26, 38))
     d = _Draw(img)
-    title = {"mole": "두더지 잡기", "simon": "순서 기억", "pairs": "짝 맞추기", "slot": "슬롯머신"}[kind]
+    title = {"mole": "두더지 잡기", "simon": "순서 기억", "pairs": "짝 맞추기", "slot": "슬롯머신", "bj": "블랙잭"}[kind]
     if kind == "mole":
         d.ellipse((48, 120, 148, 150), fill=(70, 46, 30))
         d.rounded_rectangle((66, 48, 130, 136), 30, fill=(140, 98, 66))
@@ -134,6 +138,9 @@ def menu_tile(kind: str, best: str) -> bytes:
                 _paste_center(img, _emoji(face, 40), x + 25, 95)
             else:
                 d.text((x + 25, 95), "?", font=_kr(34, 6), fill=(170, 182, 235), anchor="mm")
+    elif kind == "bj":
+        img.paste(Image.open(io.BytesIO(play_card(("A", "♠"), "", 0.55))), (36, 46))
+        img.paste(Image.open(io.BytesIO(play_card(("K", "♥"), "", 0.55))), (64, 54))
     else:
         for k in range(3):
             x = 40 + k * 40
@@ -220,6 +227,84 @@ def slot_button(kind: str, active: bool = True) -> bytes:
     return _png(img)
 
 
+@lru_cache(maxsize=256)
+def play_card(card: tuple[str, str] | None, glow: str = "", scale: float = 1.0) -> bytes:
+    """트럼프 한 장. card=None 이면 뒷면. glow: win | lose | ''"""
+    w, h = int(118 * scale), int(166 * scale)
+    img = Image.new("RGB", (w, h), (13, 14, 20)) if scale != 1.0 else Image.new("RGB", (SIZE, SIZE), (22, 70, 48))
+    d = _Draw(img)
+    x0, y0 = (0, 0) if scale != 1.0 else ((SIZE - w) // 2, (SIZE - h) // 2)
+    box = (x0, y0, x0 + w - 1, y0 + h - 1)
+    if card is None:  # 뒷면: 사선 무늬를 카드 모양 안에만
+        back = Image.new("RGB", (w, h), (50, 70, 150))
+        bd = ImageDraw.Draw(back)
+        for k in range(-h, w, max(4, int(16 * scale))):
+            bd.line((k, 0, k + h, h), fill=(75, 95, 175), width=max(1, int(3 * scale)))
+        mask = Image.new("L", (w, h), 0)
+        ImageDraw.Draw(mask).rounded_rectangle((0, 0, w - 1, h - 1), int(14 * scale), fill=255)
+        img.paste(back, (x0, y0), mask)
+        d.rounded_rectangle(box, int(14 * scale), outline=(235, 235, 245), width=max(2, int(5 * scale)))
+        return _png(img)
+    rank, suit = card
+    red = suit in "♥♦"
+    col = (210, 40, 50) if red else (25, 25, 35)
+    edge = {"win": (90, 200, 110), "lose": (230, 80, 90)}.get(glow, (200, 200, 210))
+    d.rounded_rectangle(box, int(14 * scale), fill=(252, 252, 248), outline=edge, width=max(2, int((7 if glow else 3) * scale)))
+    d.text((x0 + int(12 * scale), y0 + int(8 * scale)), rank, font=_kr(int(40 * scale), 6), fill=col, anchor="lt")
+    d.text((x0 + w // 2, y0 + int(h * 0.62)), suit, font=_kr(int(78 * scale), 6), fill=col, anchor="mm")
+    return _png(img)
+
+
+@lru_cache(maxsize=128)
+def hand_tile(cards: tuple, glow: str = "") -> bytes:
+    """카드 0~2장을 한 칸에. 두 장이면 겹쳐서 작게."""
+    if len(cards) <= 1:
+        if not cards:
+            return _png(Image.new("RGB", (SIZE, SIZE), (22, 70, 48)))
+        return play_card(cards[0], glow)
+    img = Image.new("RGB", (SIZE, SIZE), (22, 70, 48))
+    for k, c in enumerate(cards[:2]):
+        im = Image.open(io.BytesIO(play_card(c, glow, 0.78)))
+        img.paste(im, (14 + k * 72, 22 + k * 16))
+    return _png(img)
+
+
+@lru_cache(maxsize=32)
+def bj_button(label: str, sub: str, color: str, enabled: bool = True) -> bytes:
+    img = Image.new("RGB", (SIZE, SIZE), (13, 14, 20))
+    d = _Draw(img)
+    fill = _rgb(color) if enabled else (55, 58, 70)
+    d.rounded_rectangle((14, 14, 182, 182), 26, fill=fill)
+    tc = (20, 20, 28) if enabled else (120, 122, 135)
+    d.text((98, 88), label, font=_kr(40 if len(label) <= 3 else 32, 6), fill=tc, anchor="mm")
+    if sub:
+        d.text((98, 140), sub, font=_kr(22, 4), fill=tc, anchor="mm")
+    return _png(img)
+
+
+def _layout(cards: list, slots: int = 4) -> list[tuple]:
+    """카드 목록을 칸 slots 개에 나눈다. 넘치면 뒤쪽 칸부터 두 장씩."""
+    sizes = [1] * min(len(cards), slots) + [0] * max(0, slots - len(cards))
+    extra = len(cards) - slots
+    k = slots - 1
+    while extra > 0 and k >= 0:
+        sizes[k] += 1
+        extra -= 1
+        k -= 1
+    out, i = [], 0
+    for n in sizes:
+        out.append(tuple(cards[i:i + n]))
+        i += n
+    return out
+
+
+def hand_value(cards: list) -> tuple[int, bool]:
+    """(합계, 소프트 여부). A 는 1 또는 11."""
+    total = sum(10 if r in "JQK" or r == "10" else (1 if r == "A" else int(r)) for r, _ in cards)
+    soft = any(r == "A" for r, _ in cards) and total + 10 <= 21
+    return (total + 10 if soft else total), soft
+
+
 @lru_cache(maxsize=4)
 def blank_tile() -> bytes:
     return _png(Image.new("RGB", (SIZE, SIZE), (13, 14, 20)))
@@ -279,12 +364,23 @@ class Games:
         self.spin_auto = 0.0  # 이 시각이 지나면 남은 릴 자동 정지
         self.win = 0
         self.win_until = 0.0
+        # 블랙잭
+        self.bet = 2
+        self.bet_now = 0  # 이번 판에 실제로 건 코인 (더블이면 두 배)
+        self.shoe: list[tuple[str, str]] = []
+        self.dealer: list[tuple[str, str]] = []
+        self.player: list[tuple[str, str]] = []
+        self.hole = True  # 딜러 두 번째 카드를 가렸는지
+        self.result = ""  # win | lose | push | bj
+        self.next_draw = 0.0
 
     @property
     def active(self) -> bool:
         """시간이 흐르는 중인지 (게임 루프·화면보호기 판단용). 슬롯은 돌거나 당첨 연출 중일 때만."""
         if self.mode == "slot":
             return any(self.spinning) or time.time() < self.win_until
+        if self.mode == "bj":
+            return self.phase == "dealer" or time.time() < self.win_until
         return self.mode != "menu" and self.phase != "over"
 
     # ---- 저장 ----
@@ -305,7 +401,7 @@ class Games:
         v = self.best.get(mode, 0)
         if mode == "pairs":
             return f"최고 {v}번" if v else "기록 없음"
-        if mode == "slot":
+        if mode in ("slot", "bj"):
             return f"코인 {self.coins}"
         return f"최고 {v}"
 
@@ -340,6 +436,9 @@ class Games:
             if self.phase == "over":
                 if now - self.over_at > 0.8:  # 끝난 직후 실수로 누른 건 무시
                     self.start(self.mode) if idx < BOARD else self.menu()
+                return
+            if self.mode == "bj":
+                self._press_bj(idx, now)
                 return
             if idx >= BOARD:
                 return
@@ -423,6 +522,78 @@ class Games:
         if self.coins <= 0:
             self._finish()
 
+    # ---- 블랙잭 ----
+    def _draw(self) -> tuple[str, str]:
+        if len(self.shoe) < 15:  # 카드 2벌을 섞어 쓴다
+            self.shoe = [(r, s) for r in RANKS for s in SUITS] * 2
+            self.rnd.shuffle(self.shoe)
+        return self.shoe.pop()
+
+    def _press_bj(self, idx: int, now: float) -> None:
+        if self.phase in ("bet", "done"):
+            if idx == BJ_STAND and self.phase == "bet":
+                self.bet = BJ_BETS[(BJ_BETS.index(self.bet) + 1) % len(BJ_BETS)] if self.bet in BJ_BETS else 1
+            elif idx == BJ_HIT or (self.phase == "done" and idx < BOARD):
+                self._deal(now)
+            elif idx == BJ_STAND:
+                self.phase = "bet"
+            return
+        if self.phase != "play":
+            return
+        if idx == BJ_HIT:
+            self.player.append(self._draw())
+            if hand_value(self.player)[0] >= 21:
+                self._dealer_turn(now)
+        elif idx == BJ_STAND:
+            self._dealer_turn(now)
+        elif idx >= 13 and len(self.player) == 2 and self.coins >= self.bet:  # 넓은 칸 = 더블
+            self.coins -= self.bet
+            self.bet_now *= 2
+            self.player.append(self._draw())
+            self._dealer_turn(now)
+
+    def _deal(self, now: float) -> None:
+        if self.coins <= 0:  # 다 잃었으면 다시 채워 주기
+            self.coins = SLOT_START
+        bet = min(self.bet, self.coins)
+        self.coins -= bet
+        self.bet_now = bet
+        self.player = [self._draw(), self._draw()]
+        self.dealer = [self._draw(), self._draw()]
+        self.hole, self.result, self.phase = True, "", "play"
+        self._save_coins()
+        if hand_value(self.player)[0] == 21 or hand_value(self.dealer)[0] == 21:  # 블랙잭이면 바로 결판
+            self.hole = False
+            self._settle(now)
+
+    def _dealer_turn(self, now: float) -> None:
+        self.hole, self.phase, self.next_draw = False, "dealer", now + 0.7
+        if hand_value(self.player)[0] > 21:  # 버스트: 딜러는 더 안 뽑는다
+            self._settle(now)
+
+    def _settle(self, now: float) -> None:
+        p, d = hand_value(self.player)[0], hand_value(self.dealer)[0]
+        natural = p == 21 and len(self.player) == 2
+        dealer_natural = d == 21 and len(self.dealer) == 2
+        if p > 21:
+            self.result, pay = "lose", 0
+        elif natural and not dealer_natural:
+            self.result, pay = "bj", self.bet_now + (self.bet_now * 3) // 2  # 3:2
+        elif dealer_natural and not natural:
+            self.result, pay = "lose", 0
+        elif d > 21 or p > d:
+            self.result, pay = "win", self.bet_now * 2
+        elif p == d:
+            self.result, pay = "push", self.bet_now
+        else:
+            self.result, pay = "lose", 0
+        self.coins += pay
+        self.win = pay - self.bet_now
+        self.phase = "done"
+        if self.result in ("win", "bj"):
+            self.win_until = now + 1.6
+        self._save_coins()
+
     def _save_coins(self) -> None:
         self.best["slot_coins"] = self.coins
         self.best["slot"] = max(self.best.get("slot", 0), self.coins)
@@ -441,6 +612,9 @@ class Games:
                 self.rnd.shuffle(self.cards)
                 self.matched, self.open = set(), []
                 self.phase, self.peek_until, self.started = "play", now + 1.5, now
+            elif mode == "bj":
+                self.phase, self.player, self.dealer, self.result = "bet", [], [], ""
+                self.bet = min(self.bet, max(1, self.coins)) if self.coins else 2
             elif mode == "slot":
                 if self.coins <= 0:  # 다 잃었으면 다시 채워 주기
                     self.coins = SLOT_START
@@ -480,6 +654,13 @@ class Games:
             elif self.mode == "pairs":
                 if len(self.open) == 2 and now >= self.flip_back:
                     self.open = []
+            elif self.mode == "bj":
+                if self.phase == "dealer" and now >= self.next_draw:
+                    if hand_value(self.dealer)[0] < 17:  # 딜러는 16 이하면 뽑고 17 이상이면 멈춘다
+                        self.dealer.append(self._draw())
+                        self.next_draw = now + 0.7
+                    else:
+                        self._settle(now)
             elif self.mode == "slot":
                 if any(self.spinning) and now >= self.spin_next:
                     for k, on in enumerate(self.spinning):
@@ -511,7 +692,7 @@ class Games:
                 for c, g in enumerate(GAMES):
                     out[c] = menu_tile(g, self.best_text(g))
                 out.update({5: mole_tile("mole"), 6: simon_tile(6, True), 7: card_tile("🐢", "up"),
-                            8: reel_tile("7")})
+                            8: reel_tile("7"), 9: play_card(("A", "♠"))})
                 return out
             now = time.time()
             if self.mode == "pairs":
@@ -524,6 +705,26 @@ class Games:
                         out[i] = card_tile(face, "wrong" if len(self.open) == 2 and i in self.open else "up")
                     else:
                         out[i] = card_tile(None, "down")
+                return out
+            if self.mode == "bj":
+                pg = {"win": "win", "bj": "win", "lose": "lose"}.get(self.result, "")
+                dg = {"win": "lose", "bj": "lose", "lose": "win"}.get(self.result, "")
+                dealer = [self.dealer[0], None] + self.dealer[2:] if self.hole and self.dealer else self.dealer
+                out = {}
+                for k, cards in enumerate(_layout(dealer)):
+                    out[k] = hand_tile(cards, dg)
+                for k, cards in enumerate(_layout(self.player)):
+                    out[5 + k] = hand_tile(cards, pg)
+                if self.phase == "play":
+                    out[BJ_HIT] = bj_button("HIT", "한 장 더", "#9ece6a")
+                    out[BJ_STAND] = bj_button("STAND", "그만", "#f7768e")
+                elif self.phase == "dealer":
+                    out[BJ_HIT] = bj_button("HIT", "딜러 차례", "#9ece6a", False)
+                    out[BJ_STAND] = bj_button("STAND", "", "#f7768e", False)
+                else:
+                    out[BJ_HIT] = bj_button("딜", f"{min(self.bet, max(self.coins, 1))}코인 걸기", "#e0af68")
+                    out[BJ_STAND] = bj_button(f"{self.bet}", "베팅 바꾸기", "#7dcfff") if self.phase == "bet" \
+                        else bj_button("베팅", "바꾸기", "#7dcfff")
                 return out
             if self.mode == "slot":
                 glow = now < self.win_until and int(now * 5) % 2 == 0
@@ -552,8 +753,25 @@ class Games:
             best = self.best.get(self.mode, 0)
             if self.mode == "menu":
                 return wide_panel("게임", "", ["하고 싶은 게임 칸을 누르세요",
-                                              "두더지 · 순서 기억 · 짝 맞추기 · 슬롯머신",
+                                              "두더지 · 순서 · 짝 맞추기 · 슬롯 · 블랙잭",
                                               "가운데 버튼: 게임 중 메뉴로"], "#9ece6a")
+            if self.mode == "bj":
+                p = hand_value(self.player)[0] if self.player else 0
+                if self.phase == "bet":
+                    return wide_panel("블랙잭", str(self.coins), ["오른쪽 위: 딜 · 오른쪽 아래: 베팅 바꾸기",
+                                                              f"베팅 {self.bet}코인", "21에 가깝게, 넘으면 짐"], "#bb9af7")
+                if self.phase in ("play", "dealer"):
+                    shown = hand_value(self.dealer[:1])[0] if self.hole else hand_value(self.dealer)[0]
+                    dbl = "넓은 칸: 더블" if self.phase == "play" and len(self.player) == 2 and self.coins >= self.bet_now \
+                        else f"코인 {self.coins}"
+                    return wide_panel("블랙잭", str(p), [f"딜러 {shown}{'+?' if self.hole else ''} · 나 {p}",
+                                                        f"베팅 {self.bet_now}코인", dbl], "#bb9af7")
+                d = hand_value(self.dealer)[0]
+                head = {"bj": "블랙잭!", "win": "이겼어요", "push": "비겼어요", "lose": "졌어요"}[self.result]
+                big = f"+{self.win}" if self.win > 0 else ("0" if self.win == 0 else str(self.win))
+                why = "버스트" if p > 21 else ("딜러 버스트" if d > 21 else f"딜러 {d} · 나 {p}")
+                return wide_panel(head, big, [why, f"코인 {self.coins}", "아무 칸: 다음 판"],
+                                  "#e0af68" if self.result in ("win", "bj") else ("#7dcfff" if self.result == "push" else "#f7768e"))
             if self.mode == "slot":
                 if self.phase == "over":
                     return wide_panel("코인을 다 썼어요", "0", ["판 누르기: 20코인으로 다시", "가운데: 메뉴"], "#f7768e")
@@ -589,4 +807,5 @@ class Games:
                 sec = int(time.time() - self.started)
             now = time.time()
             return (self.mode, self.phase, self.score, self.pos, len(self.seq), sec, self.new_best, self.coins,
-                    any(self.spinning), now < self.win_until, now < self.peek_until, len(self.matched))
+                    any(self.spinning), now < self.win_until, now < self.peek_until, len(self.matched),
+                    len(self.player), len(self.dealer), self.hole, self.result, self.bet)

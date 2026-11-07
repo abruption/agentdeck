@@ -155,6 +155,9 @@ def game_gif(path: str) -> None:
     import games
     from d200 import Button
 
+    for fn in vars(games).values():  # 언어를 바꿔 다시 그릴 때 이전 언어로 그린 칸 캐시 비우기
+        if hasattr(fn, "cache_clear"):
+            fn.cache_clear()
     g = games.Games()
     g.best = {"mole": 31, "simon": 9, "pairs": 7, "slot": 64}
     g.coins = 23
@@ -200,6 +203,19 @@ def game_gif(path: str) -> None:
         snap(350)
     g.coins, g.win, g.win_until = 72, 50, _t.time() + 99
     snap(1400)
+    # 블랙잭: 딜 → 한 장 더 → 그만 → 딜러 공개 → 이김
+    g.mode, g.win_until, g.bet, g.bet_now, g.coins = "bj", 0, 2, 2, 70
+    g.dealer, g.player, g.hole, g.result = [("9", "♣"), ("7", "♦")], [("8", "♥"), ("3", "♠")], True, ""
+    g.phase = "play"
+    snap(1000)
+    g.player.append(("Q", "♦"))
+    snap(900)
+    g.phase, g.hole = "dealer", False
+    snap(700)
+    g.dealer.append(("8", "♠"))
+    snap(700)
+    g.phase, g.result, g.win, g.coins, g.win_until = "done", "win", 2, 74, _t.time() + 99
+    snap(1500)
     frames[0].save(path, save_all=True, append_images=frames[1:], duration=ms, loop=0, optimize=True)
 
 
