@@ -156,7 +156,8 @@ def game_gif(path: str) -> None:
     from d200 import Button
 
     g = games.Games()
-    g.best = {"mole": 31, "simon": 9}
+    g.best = {"mole": 31, "simon": 9, "pairs": 7, "slot": 64}
+    g.coins = 23
     frames, ms = [], []
 
     def snap(dur: int, middle=("메뉴", "게임 그만")) -> None:
@@ -181,6 +182,24 @@ def game_gif(path: str) -> None:
     for k, lit in enumerate((2, 7, 4, 9)):
         g.phase, g.pos, g.lit = "input", k + 1, lit
         snap(380)
+    # 짝 맞추기: 몇 장 뒤집고 한 쌍 맞추기
+    g.mode, g.phase, g.started, g.peek_until = "pairs", "play", _t.time() - 14, 0
+    g.cards = ["🐟", "🐙", "🦀", "🐢", "🦈", "🐢", "🦈", "🐟", "🐙", "🦀"]
+    g.score, g.matched, g.open = 3, {0, 7}, [1, 4]
+    snap(700)
+    g.score, g.open = 4, [3]
+    snap(450)
+    g.score, g.matched, g.open = 4, {0, 7, 3, 5}, []
+    snap(800)
+    # 슬롯머신: 돌다가 하나씩 멈춰 777
+    g.mode, g.phase, g.win, g.win_until = "slot", "play", 0, 0
+    seq = [(["🍒", "⭐", "🔔"], [1, 1, 1]), (["🍋", "💎", "7"], [1, 1, 1]), (["7", "🍒", "🍒"], [0, 1, 1]),
+           (["7", "7", "⭐"], [0, 0, 1]), (["7", "7", "7"], [0, 0, 0])]
+    for reels, spin in seq:
+        g.reels, g.spinning = reels, [bool(x) for x in spin]
+        snap(350)
+    g.coins, g.win, g.win_until = 72, 50, _t.time() + 99
+    snap(1400)
     frames[0].save(path, save_all=True, append_images=frames[1:], duration=ms, loop=0, optimize=True)
 
 

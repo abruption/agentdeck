@@ -271,12 +271,14 @@ Korean stocks coloured by daily change: **red is up, blue is down** (the Korean 
 
 <img src="images/page7-games.en.gif" width="560">
 
-The top ten keys become the game board. From the menu, press one of the **four left keys** for whack-a-mole or the **four right keys** for the memory game. The wide tile is the scoreboard, and best scores are saved.
+The top ten keys become the game board. The menu shows four games across the top row; press a game or the key below it to start. The wide tile is the scoreboard, and best scores are saved.
 
 | Game | How to play |
 |---|---|
 | 🔨 **Whack-a-mole** | 30 seconds to bop moles as they pop up. +1 per mole, **golden mole +3**, **bomb −3** if you hit it. It speeds up and starts sending two at a time |
 | 🧠 **Memory** | Keys light up in order; press them back in the same order. Each round adds one more, and a wrong key ends the game, marking it with ✕ and the right one with ! |
+| 🃏 **Pairs** | Find five pairs of aquarium friends (fish, octopus, crab, turtle, shark). Every card shows for 1.5 s at the start. **Fewer tries** is a better score |
+| 🎰 **Slots** | Press a side key (the lever) to spin three reels for 1 coin, then stop each with the **STOP** key below it. Three alike pays 50 for 7s, 30 diamonds, 15 stars, 10 bells, 6 lemons, 5 cherries; any two alike pays 2. You start with 20 coins and get 20 more if you run out |
 
 - Keys react **the moment you press**, not on release.
 - After a game, press the board to play again or the **middle button** for the menu. The middle button also quits a game in progress.
