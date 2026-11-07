@@ -102,7 +102,7 @@ Ten cells drain **from the last one backwards**. Blinks and sends a macOS notifi
 <td><img src="docs/images/page5-pomodoro.en.gif" alt="Pomodoro"></td>
 </tr>
 <tr>
-<td><img src="docs/images/page6-heatmap.en.png" alt="Stock heatmap"></td>
+<td><img src="docs/images/page6-heatmap.en.gif" alt="Stock heatmap"></td>
 <td valign="top">
 
 ### 6 · Korean stock heatmap
@@ -111,6 +111,17 @@ Korean stocks coloured by daily change, like [HeatTab](https://heattab.app) (red
 <sub>→ [Guide: heatmap](docs/GUIDE.en.md#46-korean-stock-heatmap-page-6)</sub>
 
 </td>
+</tr>
+<tr>
+<td valign="top">
+
+### 7 · Aquarium screensaver
+The whole deck becomes **one aquarium**. Fish swim across the keys, and pressing a key drops **food** there. It starts by itself when the deck sits idle and steps aside when an alert comes in.
+
+<sub>→ [Guide: aquarium](docs/GUIDE.en.md#47-aquarium-screensaver-page-7)</sub>
+
+</td>
+<td><img src="docs/images/page7-aquarium.gif" alt="Aquarium"></td>
 </tr>
 </table>
 

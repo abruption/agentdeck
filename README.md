@@ -102,7 +102,7 @@ git 워크트리를 **방치 · 정리 가능 · 오래됨 · 작업 중**으로
 <td><img src="docs/images/page5-pomodoro.gif" alt="뽀모도로"></td>
 </tr>
 <tr>
-<td><img src="docs/images/page6-heatmap.png" alt="주식 히트맵"></td>
+<td><img src="docs/images/page6-heatmap.gif" alt="주식 히트맵"></td>
 <td valign="top">
 
 ### 6 · 주식 히트맵
@@ -111,6 +111,17 @@ git 워크트리를 **방치 · 정리 가능 · 오래됨 · 작업 중**으로
 <sub>→ [가이드: 주식 히트맵](docs/GUIDE.md#46-주식-히트맵-6페이지)</sub>
 
 </td>
+</tr>
+<tr>
+<td valign="top">
+
+### 7 · 어항 화면보호기
+덱 전체를 **하나의 어항**으로 써요. 물고기가 칸을 넘나들며 헤엄치고, 칸을 누르면 그 자리에 **먹이**가 떨어져요. 한동안 안 쓰면 자동으로 켜지고, 알림이 오면 알아서 빠져나와요.
+
+<sub>→ [가이드: 어항](docs/GUIDE.md#47-어항-화면보호기-7페이지)</sub>
+
+</td>
+<td><img src="docs/images/page7-aquarium.gif" alt="어항"></td>
 </tr>
 </table>
 

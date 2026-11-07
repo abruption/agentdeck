@@ -63,7 +63,8 @@ class Button:
     bars: list[tuple] | None = None
     border: str | None = None  # 강조 테두리 색 (경고 등)
     header_fg: str | None = None  # 헤더 글자색 (없으면 accent)
-    raw_header: bool = False  # 헤더가 사용자 데이터(종목·프로젝트·pane 이름)면 번역하지 않음
+    raw_header: bool = False
+    image: bytes | None = None  # 미리 그린 196x196 PNG (어항 등). 있으면 그대로 보낸다  # 헤더가 사용자 데이터(종목·프로젝트·pane 이름)면 번역하지 않음
     fill: float | None = None  # 0~1: 아래에서부터 칸을 채우는 비율 (타이머)
     fill_color: str = "#f7768e"
 
@@ -116,6 +117,8 @@ def render_icon(btn: Button) -> bytes:
 
     from i18n import tr
 
+    if btn.image is not None:
+        return btn.image
     btn = replace(btn, header=btn.header if btn.raw_header else tr(btn.header), title=tr(btn.title), sub=tr(btn.sub),
                   bars=[(tr(b[0]), *b[1:3], *(tr(x) for x in b[3:])) for b in btn.bars] if btn.bars else None)
     img = Image.new("RGB", (ICON, ICON), btn.bg)

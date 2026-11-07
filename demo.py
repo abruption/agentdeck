@@ -98,6 +98,59 @@ def mock_market():
     return quotes, [Index("KOSPI", "2,846.12", 1.24, "OPEN"), Index("KOSDAQ", "871.35", -0.38, "OPEN")], (612, 358)
 
 
+def mock_market_views():
+    """히트맵 6가지 보기 (가짜 데이터)."""
+    from market import Quote
+    q = lambda rows: [Quote(n, c, p) for n, c, p in rows]  # noqa: E731
+    kosdaq = q([("알테오젠", 3.1, "412,000"), ("에코프로비엠", -2.4, "128,500"), ("에코프로", -1.8, "71,200"),
+                ("HLB", 5.6, "88,400"), ("리가켐바이오", 1.2, "132,900"), ("레인보우로보틱스", -3.9, "246,000"),
+                ("삼천당제약", 0.8, "158,300"), ("휴젤", -0.4, "301,500"), ("클래시스", 2.2, "58,700"), ("펩트론", 7.4, "96,100")])
+    movers = q([("조선", 4.8, "▲9 ▼2"), ("우주항공과국방", 3.9, "▲11 ▼3"), ("반도체와반도체장비", 2.7, "▲64 ▼31"),
+                ("전기장비", 2.1, "▲28 ▼12"), ("생물공학", 1.6, "▲70 ▼45"), ("은행", -1.2, "▲3 ▼8"),
+                ("화장품", -1.9, "▲12 ▼30"), ("해운사", -2.3, "▲2 ▼7"), ("게임엔터테인먼트", -2.8, "▲6 ▼25"),
+                ("항공사", -3.6, "▲1 ▼6")])
+    port = q([("삼성전자", 2.41, "93,500"), ("SK하이닉스", 4.87, "212,000"), ("NAVER", -4.12, "203,500"),
+              ("카카오", -1.05, "47,250"), ("현대차", -2.75, "243,000")])
+    secs = q([("반도체와반도체장비", 2.7, "▲64 ▼31"), ("전기제품", -0.9, "▲10 ▼14"), ("자동차", -1.4, "▲4 ▼9"),
+              ("조선", 4.8, "▲9 ▼2"), ("우주항공과국방", 3.9, "▲11 ▼3"), ("생물공학", 1.6, "▲70 ▼45"),
+              ("제약", 0.6, "▲60 ▼52"), ("은행", -1.2, "▲3 ▼8"), ("증권", 1.1, "▲18 ▼9"), ("소프트웨어", -0.3, "▲40 ▼44")])
+    macro = [Quote("USD/KRW", 0.42, "", "", "1,382.5", "+0.42%"), Quote("100JPY/KRW", -0.31, "", "", "912.3", "-0.31%"),
+             Quote("EUR/KRW", 0.12, "", "", "1,498.2", "+0.12%"), Quote("DXY", 0.35, "", "", "104.12", "+0.35%"),
+             Quote("WTI", -1.84, "", "", "$76.40", "-1.84%"), Quote("Brent", -1.52, "", "", "$80.95", "-1.52%"),
+             Quote("Gold", 0.95, "", "", "$2,412.80", "+0.95%"), Quote("Silver", 1.62, "", "", "$31.25", "+1.62%"),
+             Quote("US 10Y", 0.6, "", "", "4.231%", "+2.5bp"), Quote("US 2Y", -0.4, "", "", "4.612%", "-1.8bp")]
+    return {"top": mock_market()[0], "kosdaq": kosdaq, "movers": movers, "portfolio": port, "sectors": secs, "macro": macro}
+
+
+def heatmap_gif(path: str) -> None:
+    from market import VIEW_LABEL, VIEWS
+    views, (_, idx, br) = mock_market_views(), mock_market()
+    frames = []
+    for i, v in enumerate(VIEWS):
+        nxt = VIEW_LABEL[VIEWS[(i + 1) % len(VIEWS)]]
+        frames.append(device_mockup({**page_market(v, views[v]), **nav(6, 7, 80, ("보기", f"→ {nxt}"))},
+                                    render_market(idx, br, VIEW_LABEL[v]), 0.6))
+    frames[0].save(path, save_all=True, append_images=frames[1:], duration=1600, loop=0, optimize=True)
+
+
+def aquarium_gif(path: str) -> None:
+    from aquarium import Aquarium
+
+    aq, frames = Aquarium(seed=7), []
+    for i in range(36):
+        aq.step(0.2)
+        if i == 12:
+            aq.feed(6)
+        tiles, wide = aq.tiles()
+        frames.append(device_mockup({k: _img_button(v) for k, v in tiles.items()}, wide, 0.5))
+    frames[0].save(path, save_all=True, append_images=frames[1:], duration=200, loop=0, optimize=True)
+
+
+def _img_button(png: bytes):
+    from d200 import Button
+    return Button(image=png)
+
+
 def clock_png() -> bytes:
     return render_clock(status=[("작업 2", "#7aa2f7"), ("결정 1", "#e0af68"), ("추천 AGY", "#9ece6a")])
 
@@ -176,8 +229,6 @@ def screens() -> dict[str, tuple[dict, bytes]]:
         "page3-studio": ({**page_studio(studio, True, row, meta), **nav(3, 5, 80)}, render_worktree_summary(wts)),
         "page4-machines": ({**page_machines(machines, NOW, mole, dry), **nav(4, 5, 80)}, clock),
         "page5-pomodoro": ({**page_pomodoro(pomo, False), **nav(5, 5, 80)}, render_timer(pomo.remaining(), "running", pomo.end_at)),
-        "page6-heatmap": ({**page_market("top", mock_market()[0]), **nav(6, 6, 80, ("보기", "→ 코스닥 상위"))},
-                          render_market(mock_market()[1], mock_market()[2], "코스피 상위")),
         "worktrees": ({**page_worktrees(wts, None, None), **nav_worktrees(80)}, clock),
         "device": ({**page_device(machines[2], ms, {"purge_gb": 3.1, "purge_items": 82, "clean_gb": 13.1}, (4, 0.6), None),
                     **nav_device(80)}, clock),
@@ -264,6 +315,9 @@ if __name__ == "__main__":
             device_mockup(buttons, small, 0.6).save(os.path.join(out, f"{name}{sfx}.png"))
         studio_gif(os.path.join(out, f"page3-studio{sfx}.gif"))
         pomodoro_gif(os.path.join(out, f"page5-pomodoro{sfx}.gif"))
+        heatmap_gif(os.path.join(out, f"page6-heatmap{sfx}.gif"))
+        if lang == "ko":
+            aquarium_gif(os.path.join(out, "page7-aquarium.gif"))
         banner(out, lang)
         hero_gif(out, f"hero{sfx}.gif")
     print("written to", out)

@@ -17,6 +17,7 @@ You don't have to turn everything on. **LLM quotas and the pomodoro work right a
    - [Machines and device detail (page 4)](#44-machines-and-device-detail-page-4)
    - [Pomodoro (page 5)](#45-pomodoro-page-5)
    - [Korean stock heatmap (page 6)](#46-korean-stock-heatmap-page-6)
+   - [Aquarium screensaver (page 7)](#47-aquarium-screensaver-page-7)
 5. [Full config reference](#5-full-config-reference)
 6. [Troubleshooting](#6-troubleshooting)
 7. [Uninstall](#7-uninstall)
@@ -247,7 +248,7 @@ If you manage agents with [Herdr](https://herdr.dev), this mode gives you more:
 
 ### 4.6 Korean stock heatmap (page 6)
 
-<img src="images/page6-heatmap.en.png" width="560">
+<img src="images/page6-heatmap.en.gif" width="560">
 
 Korean stocks coloured by daily change: **red is up, blue is down** (the Korean convention), stronger colour for bigger moves. The wide tile shows KOSPI and KOSDAQ plus the number of rising and falling stocks.
 
@@ -265,6 +266,21 @@ Korean stocks coloured by daily change: **red is up, blue is down** (the Korean 
 - To enable: `"market": {"enabled": true, "portfolio": [...], "sectors": [...]}` in `config.json`
 - ⚠️ Uses **undocumented Naver Finance endpoints**. For reference only, not investment advice.
 
+### 4.7 Aquarium screensaver (page 7)
+
+<img src="images/page7-aquarium.gif" width="560">
+
+The whole deck (13 keys plus the wide tile) becomes **one screen** showing a pixel-art aquarium. Fish swim across key borders, seaweed sways and bubbles rise.
+
+| Action | Result |
+|---|---|
+| **Tap** any key | Food drops there and the fish rush over |
+| **Hold** any key | Back to the page you were on |
+
+- It starts as soon as you reach page 7, and on its own after **10 idle minutes**. Change that with `"screensaver_min"` in `config.json`; `0` turns the auto start off.
+- An **agent alert or a finished pomodoro** pulls you straight out to the right page.
+- Redraws 5 times a second; each frame is about 11 KB, so it's light on the device.
+
 ## 5. Full config reference
 
 Everything lives in `config.json`. **Anything you leave out is turned off.** Restart the dashboard after editing.
@@ -272,6 +288,7 @@ Everything lives in `config.json`. **Anything you leave out is turned off.** Res
 ```jsonc
 {
   "ui_lang": "en",              // on-device language: "en" or "ko"
+  "screensaver_min": 10,        // idle minutes before the aquarium screensaver (0 = off)
   "agent_source": "hooks",      // agent view: "hooks" or "herdr"
   "hooks": {
     "hosts": [null, "studio"]   // where to read hook state (null = this Mac)

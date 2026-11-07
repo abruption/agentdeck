@@ -15,11 +15,13 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 
 from clock import render_clock, render_market, render_message, render_timer, render_worktree_summary
-from d200 import D200, SMALL_BACKGROUND, InputEvent
+from d200 import D200, SMALL_BACKGROUND, Button, InputEvent
 from machines import MachineStat, machine_stats
 from pages import (LLM, Limit, nav, nav_device, nav_worktrees, page_device, page_grid, page_machines, page_pomodoro,
                    page_market, page_studio, page_summary, page_worktrees)
 import market
+from aquarium import Aquarium
+from config import CFG
 from mole import MOLE_HOSTS, dryrun_info, empty_trash, mole_status, refresh_dryrun, run_purge, trash_info
 from machines import MACHINES
 from worktrees import Worktree, ask_tower, open_in_herdr, remove_worktree, worktrees
@@ -33,7 +35,9 @@ REFRESH_SEC = 30
 BRIGHTNESS_STEPS = [20, 50, 80, 100]
 LONG_PRESS = 0.8
 W5, WEEK = timedelta(hours=5), timedelta(days=7)
-PAGES = 6
+PAGES = 7
+AQUA_PAGE = 7  # 어항 (넘김 순서 마지막, 화면보호기로도 사용)
+AQUA_FPS = 5
 WT_PAGE = 16  # 워크트리: 작업 현황 넓은 칸에서 들어가는 하위 페이지 (넘김 순서 밖)
 DEV_PAGE = 17  # 기기 상세: 머신 페이지에서 컴퓨터를 눌러 들어가는 하위 페이지
 WT_POLL_SEC = 60
@@ -115,6 +119,12 @@ class Dashboard:
         self.zoomed_pane: str | None = None  # 대시보드가 확대해 둔 총괄 pane
         self.pomo = Pomodoro.load()
         self.market_view = 0  # market.VIEWS 순서
+        self.aquarium = Aquarium()
+        self.aqua_thread: threading.Thread | None = None
+        self.aqua_entered = 0.0
+        self.saver_from: int | None = None  # 화면보호기로 들어오기 전 페이지 (None 이면 직접 들어옴)
+        self.last_input = time.time()
+        self.saver_sec = float(CFG.get("screensaver_min", 10)) * 60  # 0 이면 화면보호기 끔
         self.market_quotes = None
         self.market_idx: list = []
         self.market_breadth = (0, 0)
@@ -142,6 +152,13 @@ class Dashboard:
         if ev.action != "release":
             return
         held = time.time() - self.pressed_at.pop(ev.index, time.time())
+        self.last_input = time.time()
+        if self.page == AQUA_PAGE:  # 어항: 짧게 = 먹이, 길게 = 나가기
+            if held >= LONG_PRESS:
+                self.leave_aquarium()
+            else:
+                self.aquarium.feed(ev.index if ev.index < 13 else 13)
+            return
         if self.page == DEV_PAGE and ev.index in (10, 12):  # 기기 상세 → 뒤로(머신) / 다음 기기
             if ev.index == 10:
                 self.page = 4
@@ -158,11 +175,17 @@ class Dashboard:
             self.render()
         elif ev.index == 10:
             self.page = PAGES if self.page == 1 else self.page - 1
+            if self.page == AQUA_PAGE:
+                self.enter_aquarium(saver=False)
+                return
             self.render()
             if self.page == 6:
                 self.pool.submit(self.refresh_market)
         elif ev.index == 12:
             self.page = 1 if self.page == PAGES else self.page + 1
+            if self.page == AQUA_PAGE:
+                self.enter_aquarium(saver=False)
+                return
             self.render()
             if self.page == 6:
                 self.pool.submit(self.refresh_market)
@@ -303,6 +326,28 @@ class Dashboard:
 
         self.pool.submit(run)
 
+    # ---- 어항 (7페이지 · 화면보호기) ----
+    def enter_aquarium(self, saver: bool) -> None:
+        self.saver_from = self.page if saver else None
+        self.page = AQUA_PAGE
+        self.aqua_entered = time.time()
+        if not (self.aqua_thread and self.aqua_thread.is_alive()):
+            self.aqua_thread = threading.Thread(target=self.aqua_loop, daemon=True)
+            self.aqua_thread.start()
+
+    def leave_aquarium(self, to: int | None = None) -> None:
+        self.page = to or self.saver_from or 1
+        self.saver_from = None
+        self.render()
+
+    def aqua_loop(self) -> None:
+        """어항 페이지에 있는 동안 초당 AQUA_FPS 번 화면을 다시 보낸다."""
+        while self.page == AQUA_PAGE and not self.stop.is_set():
+            t0 = time.time()
+            self.aquarium.step(1 / AQUA_FPS)
+            self.render()
+            time.sleep(max(0.0, 1 / AQUA_FPS - (time.time() - t0)))
+
     # ---- 주식 히트맵(6페이지) ----
     def refresh_market(self) -> None:
         if not market.MARKET_ENABLED:
@@ -419,6 +464,14 @@ class Dashboard:
     def render(self) -> None:
         with self.render_lock:
             now = datetime.now(timezone.utc)
+            if self.page == AQUA_PAGE:
+                hint = "짧게 눌러 먹이 · 길게 눌러 나가기" if time.time() - self.aqua_entered < 4 else None
+                tiles, wide = self.aquarium.tiles(hint)
+                try:
+                    self.deck.set_buttons({i: Button(image=p) for i, p in tiles.items()}, small_png=wide)
+                except Exception as e:
+                    print(f"{datetime.now():%H:%M:%S} aqua render error: {e}", flush=True)
+                return
             if self.page == 1:
                 body = page_summary(self.llms, self.studio, now, self.blink_on)
             elif self.page == 2:
@@ -529,6 +582,15 @@ class Dashboard:
                     self.blink_on, dirty = not self.blink_on, True
                 elif self.blink_on:
                     self.blink_on, dirty = False, True
+                # 화면보호기: 오래 입력이 없으면 어항, 알림이 생기면 빠져나오기
+                alert = self.studio.attention or self.studio.done or self.pomo.state == "done"
+                if self.page == AQUA_PAGE:
+                    if alert and self.saver_from is not None:
+                        self.leave_aquarium(5 if self.pomo.state == "done" else 3)
+                    continue
+                if self.saver_sec and not alert and time.time() - self.last_input > self.saver_sec:
+                    self.enter_aquarium(saver=True)
+                    continue
                 # 워크트리: 확인 대기·결과 메시지가 만료되면 원래 화면으로
                 if self.wt_armed and time.time() >= self.wt_armed[2]:
                     self.wt_armed, dirty = None, dirty or self.page == WT_PAGE
