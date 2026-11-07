@@ -1,0 +1,27 @@
+{
+  "ui_lang": "en",
+  "agent_source": "hooks",
+  "hooks": {
+    "hosts": [null]
+  },
+  "machines": [
+    {"name": "MacBook", "ssh": null, "mole": true},
+    {"name": "Studio", "ssh": "studio-host", "mole": true},
+    {"name": "Mini", "ssh": "user@mini-host", "mole": false}
+  ],
+  "external_drives": [
+    {"volume": "My Book", "machine": "Studio"}
+  ],
+  "studio": {
+    "enabled": false,
+    "host": "studio-host",
+    "tower_space": "CONTROL_TOWER",
+    "tower_main_tab": "lead",
+    "lead_pane": "t1",
+    "worktree_globs": ["~/worktrees/*/*"]
+  },
+  "agy": {
+    "enabled": false,
+    "host": "studio-host"
+  }
+}

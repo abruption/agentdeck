@@ -1,0 +1,19 @@
+name: 기능 제안 / Feature request
+description: 새 페이지, 데이터 소스, 버튼 동작 아이디어 / New page, data source or button idea
+labels: [enhancement]
+body:
+  - type: textarea
+    id: idea
+    attributes:
+      label: 어떤 기능인가요? / What's the idea?
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: 어떤 상황에서 쓰나요? / When would you use it?
+  - type: textarea
+    id: layout
+    attributes:
+      label: 화면 배치 스케치 (선택) / Tile layout sketch (optional)
+      placeholder: "[칸1: ...][칸2: ...] ..."

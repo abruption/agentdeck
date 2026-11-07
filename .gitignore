@@ -1,0 +1,14 @@
+# 개인 설정 (config.example.json 을 복사해서 사용)
+config.json
+
+# 실행 산출물
+*.log
+*.out
+__pycache__/
+.venv/
+.build/
+
+# 로컬 도구·참고 자료
+refs/
+.moai/
+.DS_Store
