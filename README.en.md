@@ -101,6 +101,17 @@ Ten cells drain **from the last one backwards**. Blinks and sends a macOS notifi
 </td>
 <td><img src="docs/images/page5-pomodoro.en.gif" alt="Pomodoro"></td>
 </tr>
+<tr>
+<td><img src="docs/images/page6-heatmap.en.png" alt="Stock heatmap"></td>
+<td valign="top">
+
+### 6 · Korean stock heatmap
+Korean stocks coloured by daily change, like [HeatTab](https://heattab.app) (red up, blue down, the Korean convention). Switch between **top market cap, sector movers, your portfolio and watched sectors** with the middle button; press a tile to open a HeatTab new tab.
+
+<sub>→ [Guide: heatmap](docs/GUIDE.en.md#46-korean-stock-heatmap-page-6)</sub>
+
+</td>
+</tr>
 </table>
 
 ## 🚀 Quick start

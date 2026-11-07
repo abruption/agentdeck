@@ -2,15 +2,32 @@
   "ui_lang": "en",
   "agent_source": "hooks",
   "hooks": {
-    "hosts": [null]
+    "hosts": [
+      null
+    ]
   },
   "machines": [
-    {"name": "MacBook", "ssh": null, "mole": true},
-    {"name": "Studio", "ssh": "studio-host", "mole": true},
-    {"name": "Mini", "ssh": "user@mini-host", "mole": false}
+    {
+      "name": "MacBook",
+      "ssh": null,
+      "mole": true
+    },
+    {
+      "name": "Studio",
+      "ssh": "studio-host",
+      "mole": true
+    },
+    {
+      "name": "Mini",
+      "ssh": "user@mini-host",
+      "mole": false
+    }
   ],
   "external_drives": [
-    {"volume": "My Book", "machine": "Studio"}
+    {
+      "volume": "My Book",
+      "machine": "Studio"
+    }
   ],
   "studio": {
     "enabled": false,
@@ -18,10 +35,32 @@
     "tower_space": "CONTROL_TOWER",
     "tower_main_tab": "lead",
     "lead_pane": "t1",
-    "worktree_globs": ["~/worktrees/*/*"]
+    "worktree_globs": [
+      "~/worktrees/*/*"
+    ]
   },
   "agy": {
     "enabled": false,
     "host": "studio-host"
+  },
+  "market": {
+    "enabled": true,
+    "portfolio": [
+      "005930",
+      "000660",
+      "035420"
+    ],
+    "sectors": [
+      "반도체와반도체장비",
+      "전기제품",
+      "자동차",
+      "조선",
+      "우주항공과국방",
+      "생물공학",
+      "제약",
+      "은행",
+      "증권",
+      "소프트웨어"
+    ]
   }
 }

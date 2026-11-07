@@ -14,11 +14,12 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 
-from clock import render_clock, render_message, render_timer, render_worktree_summary
+from clock import render_clock, render_market, render_message, render_timer, render_worktree_summary
 from d200 import D200, SMALL_BACKGROUND, InputEvent
 from machines import MachineStat, machine_stats
 from pages import (LLM, Limit, nav, nav_device, nav_worktrees, page_device, page_grid, page_machines, page_pomodoro,
-                   page_studio, page_summary, page_worktrees)
+                   page_market, page_studio, page_summary, page_worktrees)
+import market
 from mole import MOLE_HOSTS, dryrun_info, empty_trash, mole_status, refresh_dryrun, run_purge, trash_info
 from machines import MACHINES
 from worktrees import Worktree, ask_tower, open_in_herdr, remove_worktree, worktrees
@@ -32,9 +33,9 @@ REFRESH_SEC = 30
 BRIGHTNESS_STEPS = [20, 50, 80, 100]
 LONG_PRESS = 0.8
 W5, WEEK = timedelta(hours=5), timedelta(days=7)
-PAGES = 5
-WT_PAGE = 6  # 워크트리: 작업 현황 넓은 칸에서 들어가는 하위 페이지 (넘김 순서 밖)
-DEV_PAGE = 7  # 기기 상세: 머신 페이지에서 컴퓨터를 눌러 들어가는 하위 페이지
+PAGES = 6
+WT_PAGE = 16  # 워크트리: 작업 현황 넓은 칸에서 들어가는 하위 페이지 (넘김 순서 밖)
+DEV_PAGE = 17  # 기기 상세: 머신 페이지에서 컴퓨터를 눌러 들어가는 하위 페이지
 WT_POLL_SEC = 60
 ARM_SEC = 10  # 길게 한 번 누른 뒤 확인 대기 시간
 MACHINE_POLL_SEC = 60
@@ -113,6 +114,10 @@ class Dashboard:
         self.tower_meta = TowerMeta({}, {})
         self.zoomed_pane: str | None = None  # 대시보드가 확대해 둔 총괄 pane
         self.pomo = Pomodoro.load()
+        self.market_view = 0  # market.VIEWS 순서
+        self.market_quotes = None
+        self.market_idx: list = []
+        self.market_breadth = (0, 0)
         self.wts: list[Worktree] | None = []
         self.wts_at = 0.0
         self.wt_armed: tuple[str, str, float] | None = None  # (경로, remove|ask, 만료 시각)
@@ -154,9 +159,13 @@ class Dashboard:
         elif ev.index == 10:
             self.page = PAGES if self.page == 1 else self.page - 1
             self.render()
+            if self.page == 6:
+                self.pool.submit(self.refresh_market)
         elif ev.index == 12:
             self.page = 1 if self.page == PAGES else self.page + 1
             self.render()
+            if self.page == 6:
+                self.pool.submit(self.refresh_market)
         elif self.page == 3 and ev.index >= 13:  # 작업 현황의 넓은 칸 = 워크트리 버튼
             self.page = WT_PAGE
             self.render()
@@ -170,6 +179,13 @@ class Dashboard:
         elif self.page == 1 and ev.index == 8 and (self.studio.attention or self.studio.done):  # 요약 스튜디오 칸: 알림 있는 곳으로
             alerts = [w for w in self.studio.workspaces if w.attention] or [w for w in self.studio.workspaces if w.done]
             self.focus_ws(alerts[0])
+        elif self.page == 6 and ev.index < 10:  # 히트맵 칸: HeatTab 새 탭
+            self.pool.submit(market.open_heattab)
+        elif self.page == 6 and ev.index == 11 and held < LONG_PRESS:  # 히트맵: 가운데 짧게 = 보기 전환
+            self.market_view = (self.market_view + 1) % len(market.VIEWS)
+            self.market_quotes = None
+            self.render()
+            self.pool.submit(self.refresh_market)
         elif ev.index == 11:
             if held >= LONG_PRESS:  # 길게: 밝기 순환
                 self.brightness_idx = (self.brightness_idx + 1) % len(BRIGHTNESS_STEPS)
@@ -287,6 +303,17 @@ class Dashboard:
 
         self.pool.submit(run)
 
+    # ---- 주식 히트맵(6페이지) ----
+    def refresh_market(self) -> None:
+        if not market.MARKET_ENABLED:
+            return
+        view = market.VIEWS[self.market_view]
+        self.market_quotes = market.view_data(view)
+        self.market_idx = market.indices()
+        self.market_breadth = market.breadth()
+        if self.page == 6:
+            self.render()
+
     # ---- 뽀모도로(5페이지) ----
     def on_pomodoro_press(self, idx: int, held: float) -> None:
         if self.pomo.state == "setup":
@@ -403,6 +430,8 @@ class Dashboard:
                 body = page_machines(self.machines, now, self.mole, dry)
             elif self.page == 5:
                 body = page_pomodoro(self.pomo, self.blink_on)
+            elif self.page == 6:
+                body = page_market(market.VIEWS[self.market_view], self.market_quotes)
             elif self.page == DEV_PAGE:
                 name, host = MACHINES[self.device_idx][0], MOLE_HOSTS.get(MACHINES[self.device_idx][0])
                 m = next((x for x in self.machines if x.name == name), None)
@@ -415,6 +444,9 @@ class Dashboard:
                 if self.page == 5:
                     small = render_timer(self.pomo.remaining(), self.pomo.state,
                                          self.pomo.end_at if self.pomo.state == "running" else None)
+                elif self.page == 6:
+                    small = render_market(self.market_idx or market.indices(), self.market_breadth,
+                                          market.VIEW_LABEL[market.VIEWS[self.market_view]])
                 elif self.page == 3:  # 시계 대신 워크트리 요약 (누르면 워크트리 페이지)
                     small = render_worktree_summary(self.wts)
                 elif self.page == DEV_PAGE:
@@ -437,6 +469,9 @@ class Dashboard:
                     navs = nav_worktrees(self.brightness)
                 elif self.page == DEV_PAGE:
                     navs = nav_device(self.brightness)
+                elif self.page == 6:
+                    nxt = market.VIEW_LABEL[market.VIEWS[(self.market_view + 1) % len(market.VIEWS)]]
+                    navs = nav(self.page, PAGES, self.brightness, ("보기", f"→ {nxt}"))
                 else:
                     navs = nav(self.page, PAGES, self.brightness)
                 self.deck.set_buttons({**body, **navs}, small_png=small)
@@ -451,6 +486,8 @@ class Dashboard:
                 self.machines_at = time.time()
             if time.time() - self.wts_at >= WT_POLL_SEC:
                 self.pool.submit(self.refresh_worktrees)
+            if self.page == 6:
+                self.pool.submit(self.refresh_market)
             if self.page == DEV_PAGE:
                 self.machines = machine_stats(self.pool)
                 self.pool.submit(self.refresh_device)

@@ -160,3 +160,25 @@ def render_message(title: str, lines: list[str], color: str = "#bb9af7") -> byte
     buf = io.BytesIO()
     img.save(buf, "PNG")
     return buf.getvalue()
+
+
+def render_market(indices, breadth: tuple[int, int], view_label: str) -> bytes:
+    """히트맵 페이지의 넓은 칸: KOSPI·KOSDAQ + 상승/하락 종목 수 + 지금 보기."""
+    img = Image.new("RGB", (W, H), "#0d0e14")
+    d = _Draw(img)
+    for i, ix in enumerate(indices[:2]):
+        x = 24 + i * 220
+        up = (ix.change or 0) >= 0
+        col = "#e5484d" if up else "#3b6ff5"
+        d.text((x, 30), ix.name, font=_kr(22, 6), fill="#a9b1d6", anchor="lm")
+        d.text((x, 74), ix.price, font=_sf(40, b"Semibold"), fill="#e6e9f5", anchor="lm")
+        d.text((x, 114), "-" if ix.change is None else f"{ix.change:+.2f}%", font=_sf(28, b"Semibold"), fill=col,
+               anchor="lm")
+    rise, fall = breadth
+    d.text((24, 160), f"▲ {rise}", font=_kr(22, 4), fill="#e5484d", anchor="lm")
+    d.text((120, 160), f"▼ {fall}", font=_kr(22, 4), fill="#3b6ff5", anchor="lm")
+    status = "장중" if any(ix.status == "OPEN" for ix in indices) else "장 마감"
+    d.text((W - 22, 160), f"{view_label} · {status}", font=_kr(20, 2), fill="#565f89", anchor="rm")
+    buf = io.BytesIO()
+    img.save(buf, "PNG")
+    return buf.getvalue()

@@ -17,12 +17,12 @@ from PIL import Image, ImageDraw, ImageFilter
 import i18n
 import pages
 import remote_herdr
-from clock import _kr, _sf, render_clock, render_timer, render_worktree_summary
+from clock import _kr, _sf, render_clock, render_market, render_timer, render_worktree_summary
 from d200 import render_icon
 from machines import MachineStat, Volume
 from mole import MoleStatus
 from pages import (LLM, Limit, nav, nav_device, nav_worktrees, page_device, page_grid, page_machines, page_pomodoro,
-                   page_studio, page_summary, page_worktrees)
+                   page_market, page_studio, page_summary, page_worktrees)
 from pomodoro import Pomodoro
 from remote_herdr import StudioState, TowerMeta, Workspace
 from worktrees import Worktree
@@ -86,6 +86,16 @@ def mock_worktrees() -> list[Worktree]:
     return [wt("web-app", "checkout-redesign", 42, 7, 20), wt("web-app", "old-experiment", 0, 12, 400),
             wt("content", "ep12-render", 0, 0, 5), wt("pipeline", "etl-fix", 3, 2, 1, [{"address": "t7", "status": "working"}]),
             wt("mobile", "push-settings", 0, 1, 10)]
+
+
+def mock_market():
+    from market import Index, Quote
+    names = [("삼성전자", 2.41, "93,500"), ("SK하이닉스", 4.87, "212,000"), ("LG에너지솔루션", -1.32, "381,500"),
+             ("삼성바이오로직스", 0.42, "1,021,000"), ("현대차", -2.75, "243,000"), ("기아", -0.61, "104,800"),
+             ("셀트리온", 1.18, "187,400"), ("KB금융", 0.05, "96,200"), ("NAVER", -4.12, "203,500"),
+             ("한화에어로스페이스", 6.20, "512,000")]
+    quotes = [Quote(n, c, p) for n, c, p in names]
+    return quotes, [Index("KOSPI", "2,846.12", 1.24, "OPEN"), Index("KOSDAQ", "871.35", -0.38, "OPEN")], (612, 358)
 
 
 def clock_png() -> bytes:
@@ -166,6 +176,8 @@ def screens() -> dict[str, tuple[dict, bytes]]:
         "page3-studio": ({**page_studio(studio, True, row, meta), **nav(3, 5, 80)}, render_worktree_summary(wts)),
         "page4-machines": ({**page_machines(machines, NOW, mole, dry), **nav(4, 5, 80)}, clock),
         "page5-pomodoro": ({**page_pomodoro(pomo, False), **nav(5, 5, 80)}, render_timer(pomo.remaining(), "running", pomo.end_at)),
+        "page6-heatmap": ({**page_market("top", mock_market()[0]), **nav(6, 6, 80, ("보기", "→ 업종 등락"))},
+                          render_market(mock_market()[1], mock_market()[2], "시총 상위")),
         "worktrees": ({**page_worktrees(wts, None, None), **nav_worktrees(80)}, clock),
         "device": ({**page_device(machines[2], ms, {"purge_gb": 3.1, "purge_items": 82, "clean_gb": 13.1}, (4, 0.6), None),
                     **nav_device(80)}, clock),

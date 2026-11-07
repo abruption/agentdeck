@@ -16,6 +16,7 @@ You don't have to turn everything on. **LLM quotas and the pomodoro work right a
    - [Worktrees](#43-worktrees)
    - [Machines and device detail (page 4)](#44-machines-and-device-detail-page-4)
    - [Pomodoro (page 5)](#45-pomodoro-page-5)
+   - [Korean stock heatmap (page 6)](#46-korean-stock-heatmap-page-6)
 5. [Full config reference](#5-full-config-reference)
 6. [Troubleshooting](#6-troubleshooting)
 7. [Uninstall](#7-uninstall)
@@ -243,6 +244,24 @@ If you manage agents with [Herdr](https://herdr.dev), this mode gives you more:
 4. When it ends, it jumps to page 5 from wherever you are, blinks, and sends a macOS notification with a sound.
 
 > The timer survives dashboard restarts.
+
+### 4.6 Korean stock heatmap (page 6)
+
+<img src="images/page6-heatmap.en.png" width="560">
+
+Korean stocks coloured by daily change: **red is up, blue is down** (the Korean convention), stronger colour for bigger moves. The wide tile shows KOSPI and KOSDAQ plus the number of rising and falling stocks.
+
+| Each tap of the middle button shows | |
+|---|---|
+| Top market cap | Top 10 KOSPI stocks by market cap |
+| Sector movers | Today's 5 best and 5 worst sectors |
+| My portfolio | Stock codes in `market.portfolio` (e.g. `"005930"`) |
+| Watched sectors | 10 sector names in `market.sectors` (Naver Finance names) |
+
+- Pressing a tile opens a **new Chrome tab**; with the [HeatTab](https://heattab.app) extension installed, that tab is the full heatmap.
+- Refreshes every minute while this page is shown.
+- To enable: `"market": {"enabled": true, "portfolio": [...], "sectors": [...]}` in `config.json`
+- ⚠️ Uses **undocumented Naver Finance endpoints**. For reference only, not investment advice.
 
 ## 5. Full config reference
 

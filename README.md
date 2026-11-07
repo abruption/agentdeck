@@ -101,6 +101,17 @@ git 워크트리를 **방치 · 정리 가능 · 오래됨 · 작업 중**으로
 </td>
 <td><img src="docs/images/page5-pomodoro.gif" alt="뽀모도로"></td>
 </tr>
+<tr>
+<td><img src="docs/images/page6-heatmap.png" alt="주식 히트맵"></td>
+<td valign="top">
+
+### 6 · 주식 히트맵
+[HeatTab](https://heattab.app)처럼 한국 주식을 등락률 색으로 보여줘요(상승 빨강 · 하락 파랑). **시총 상위 · 업종 등락 · 내 포트폴리오 · 관심 업종**을 가운데 버튼으로 전환하고, 칸을 누르면 HeatTab 새 탭이 열려요.
+
+<sub>→ [가이드: 주식 히트맵](docs/GUIDE.md#46-주식-히트맵-6페이지)</sub>
+
+</td>
+</tr>
 </table>
 
 ## 🚀 빠른 시작

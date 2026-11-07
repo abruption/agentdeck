@@ -71,7 +71,14 @@ def pct(x: float | None) -> str:
 
 
 # ---------- 공통 ----------
-def nav(page: int, total: int, brightness: int) -> dict[int, Button]:
+def nav(page: int, total: int, brightness: int, middle: tuple[str, str] | None = None) -> dict[int, Button]:
+    """middle: (제목, 아래 줄) 로 가운데 버튼 문구를 바꿀 수 있다 (예: 히트맵 보기 전환)."""
+    if middle:
+        return {
+            10: Button(header="이전", title="◀", sub="", bg=NAV_BG, accent=DIM),
+            11: Button(header=f"{page}/{total} 페이지", title=middle[0], sub=middle[1], bg=NAV_BG, accent=DIM),
+            12: Button(header="다음", title="▶", sub="", bg=NAV_BG, accent=DIM),
+        }
     return {
         10: Button(header="이전", title="◀", sub="", bg=NAV_BG, accent=DIM),
         11: Button(header=f"{page}/{total} 페이지", title="갱신", sub=f"길게: 밝기 {brightness}", bg=NAV_BG, accent=DIM),
@@ -165,26 +172,28 @@ STUDIO_THEME = {"bg": BG, "accent": "#7aa2f7", "idle": DIM}
 TOWER_THEME = {"bg": "#2a2142", "accent": "#bb9af7", "idle": "#a493d6"}
 
 
-def _alert_tile(header: str, title: str, sub: str, color: str, blink_on: bool, theme: dict = STUDIO_THEME) -> Button:
+def _alert_tile(header: str, title: str, sub: str, color: str, blink_on: bool, theme: dict = STUDIO_THEME,
+                raw: bool = False) -> Button:
     if blink_on:
-        return Button(header=header, title=title, sub=sub, bg=color, fg="#16161e", accent="#16161e")
-    return Button(header=header, title=title, sub=sub, bg=theme["bg"], accent=color, border=color)
+        return Button(header=header, raw_header=raw, title=title, sub=sub, bg=color, fg="#16161e", accent="#16161e")
+    return Button(header=header, raw_header=raw, title=title, sub=sub, bg=theme["bg"], accent=color, border=color)
 
 
 def studio_tile(w: Workspace, blink_on: bool, header: str | None = None, theme: dict = STUDIO_THEME) -> Button:
     """스튜디오 한 칸: 알림(결정/완료) 깜빡임 + 실행 중 에이전트 수."""
+    raw = header is None  # 스튜디오 이름(사용자 데이터)은 번역하지 않음
     header = header or w.name.replace(" · 스튜디오", "")
     # 아래 줄: 에이전트 종류별 개수(C=Claude, X=Codex, A=agy) + 지금 실행 중인 수
     mix = " ".join(f"{k}{v}" for k, v in sorted(w.agents.items()))
     running = f"{mix} · 실행 {w.working}" if mix else f"실행 {w.working}"
     if w.attention:
-        return _alert_tile(header, f"결정 {w.attention}", running, YELLOW, blink_on, theme)
+        return _alert_tile(header, f"결정 {w.attention}", running, YELLOW, blink_on, theme, raw)
     if w.done:
-        return _alert_tile(header, f"완료 {w.done}", running, GREEN, blink_on, theme)
+        return _alert_tile(header, f"완료 {w.done}", running, GREEN, blink_on, theme, raw)
     if w.working:
-        return Button(header=header, title=f"작업 {w.working}", sub=running, bg=theme["bg"], accent=theme["accent"],
+        return Button(header=header, raw_header=raw, title=f"작업 {w.working}", sub=running, bg=theme["bg"], accent=theme["accent"],
                       border=theme["accent"])
-    return Button(header=header, title="대기", sub=running, bg=theme["bg"], accent=theme["idle"])
+    return Button(header=header, raw_header=raw, title="대기", sub=running, bg=theme["bg"], accent=theme["idle"])
 
 
 APP_LABEL = {"claude-code": "Claude", "codex": "Codex", "antigravity": "AGY"}
@@ -208,14 +217,14 @@ def pane_tile(tower: Workspace, m: Member, name: str, kinds: list, blink_on: boo
     sub = children_text(kinds, APP_LABEL.get(m.app or "", ""))
     st = tower.state_of(m.term)
     if st == "attention":
-        return _alert_tile(header, "결정", sub, YELLOW, blink_on, th)
+        return _alert_tile(header, "결정", sub, YELLOW, blink_on, th, True)
     if st == "done":
-        return _alert_tile(header, "완료", sub, GREEN, blink_on, th)
+        return _alert_tile(header, "완료", sub, GREEN, blink_on, th, True)
     if st == "working":
-        return Button(header=header, title="작업 중", sub=sub, bg=th["bg"], accent=th["accent"], border=th["accent"])
+        return Button(header=header, raw_header=True, title="작업 중", sub=sub, bg=th["bg"], accent=th["accent"], border=th["accent"])
     if any(k_st == "working" for _, k_st in kinds):  # 총괄은 쉬는데 하위가 일하는 중
-        return Button(header=header, title="위임 중", sub=sub, bg=th["bg"], accent=th["accent"], border="#7a5fc0")
-    return Button(header=header, title="대기", sub=sub, bg=th["bg"], accent=th["idle"])
+        return Button(header=header, raw_header=True, title="위임 중", sub=sub, bg=th["bg"], accent=th["accent"], border="#7a5fc0")
+    return Button(header=header, raw_header=True, title="대기", sub=sub, bg=th["bg"], accent=th["idle"])
 
 
 def page_studio(studio: StudioState, blink_on: bool, row: list[Workspace], meta: TowerMeta | None = None) -> dict[int, Button]:
@@ -354,9 +363,9 @@ def page_worktrees(items, armed_path: str | None, armed_action: str | None) -> d
         sub = f"{short_name(w.name, 14)} · {info}"
         if w.path == armed_path:  # 길게 한 번 누름: 확인 대기 (빨강)
             title = "삭제?" if armed_action == "remove" else "총괄 지시?"
-            p[i] = Button(header=short_name(w.repo), header_fg="#16161e", title=title, sub="길게 한 번 더", bg=RED, fg="#16161e")
+            p[i] = Button(header=short_name(w.repo), raw_header=True, header_fg="#16161e", title=title, sub="길게 한 번 더", bg=RED, fg="#16161e")
             continue
-        p[i] = Button(header=short_name(w.repo), header_fg="#e6e9f5", title=w.state, sub=sub, bg="#1f2233", accent=color,
+        p[i] = Button(header=short_name(w.repo), raw_header=True, header_fg="#e6e9f5", title=w.state, sub=sub, bg="#1f2233", accent=color,
                       border=color)
     return p
 
@@ -425,3 +434,33 @@ def nav_device(brightness: int) -> dict[int, Button]:
         11: Button(header="기기", title="갱신", sub=f"길게: 밝기 {brightness}", bg=NAV_BG, accent=DIM),
         12: Button(header="다음", title="▶", sub="다음 기기", bg=NAV_BG, accent=DIM),
     }
+
+
+# ---------- 페이지 6: 주식 히트맵 (HeatTab 연동) ----------
+KR_UP, KR_DOWN = (229, 72, 77), (59, 111, 245)  # 한국식: 상승 빨강, 하락 파랑
+
+
+def heat_color(change: float | None) -> str:
+    """등락률이 클수록 진하게 (±6% 에서 최대)."""
+    if change is None:
+        return BG
+    base, tint = (31, 34, 51), (KR_UP if change >= 0 else KR_DOWN)
+    t = 0.25 + 0.75 * min(abs(change) / 6, 1.0) if abs(change) >= 0.05 else 0
+    return "#%02x%02x%02x" % tuple(int(b + (c - b) * t) for b, c in zip(base, tint))
+
+
+def page_market(view: str, quotes) -> dict[int, Button]:
+    from market import VIEW_LABEL
+
+    p: dict[int, Button] = {i: Button(bg=BG) for i in range(10)}
+    if quotes is None:
+        p[0] = Button(header="히트맵", title="-", sub="연결 안 됨", bg=BG, accent=RED)
+        return p
+    if not quotes:
+        p[0] = Button(header=VIEW_LABEL.get(view, ""), title="-", sub="config 에 종목 추가", bg=BG, accent=DIM)
+        return p
+    for i, q in enumerate(quotes[:10]):
+        title = "-" if q.change is None else f"{q.change:+.2f}%"
+        p[i] = Button(header=q.name, raw_header=True, header_fg="#ffffff", title=title, sub=q.price, bg=heat_color(q.change),
+                      fg="#ffffff")
+    return p
