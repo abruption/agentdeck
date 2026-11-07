@@ -1,10 +1,12 @@
 """한국 주식 히트맵 데이터 (HeatTab 과 같은 네이버 증권 데이터, 비공식 API).
 
-보기 4가지 (대시보드 가운데 버튼으로 전환)
+보기 6가지 (대시보드 가운데 버튼으로 전환)
   top       : KOSPI 시가총액 상위 10종목
+  kosdaq    : KOSDAQ 시가총액 상위 10종목
   movers    : 업종 등락 상위 5 + 하위 5
   portfolio : config.json market.portfolio 종목코드 목록
   sectors   : config.json market.sectors 관심 업종 (고정 위치)
+  macro     : 환율·원자재·금리 (USD/KRW, JPY/KRW, EUR/KRW, 달러인덱스, WTI, 브렌트, 금, 은, 미 10년·2년물)
 """
 
 from __future__ import annotations
@@ -30,8 +32,18 @@ PORTFOLIO: list[str] = MARKET_CFG.get("portfolio", [])
 FAV_SECTORS: list[str] = MARKET_CFG.get("sectors", [
     "반도체와반도체장비", "전기제품", "자동차", "조선", "우주항공과국방",
     "생물공학", "제약", "은행", "증권", "소프트웨어"])
-VIEWS = ["top", "movers", "portfolio", "sectors"]
-VIEW_LABEL = {"top": "시총 상위", "movers": "업종 등락", "portfolio": "내 포트폴리오", "sectors": "관심 업종"}
+VIEWS = ["top", "kosdaq", "movers", "portfolio", "sectors", "macro"]
+VIEW_LABEL = {"top": "코스피 상위", "kosdaq": "코스닥 상위", "movers": "업종 등락", "portfolio": "내 포트폴리오",
+              "sectors": "관심 업종", "macro": "환율·원자재·금리"}
+
+# 지표: (표시 이름, 네이버 분류, 코드, 형식)  형식 rate = 금리(%, 등락은 bp)
+MACRO: list[tuple[str, str, str, str]] = [
+    ("USD/KRW", "exchange", "FX_USDKRW", "fx"), ("100JPY/KRW", "exchange", "FX_JPYKRW", "fx"),
+    ("EUR/KRW", "exchange", "FX_EURKRW", "fx"), ("DXY", "exchange", ".DXY", "num"),
+    ("WTI", "energy", "CLcv1", "usd"), ("Brent", "energy", "LCOcv1", "usd"),
+    ("Gold", "metals", "GCcv1", "usd"), ("Silver", "metals", "SIcv1", "usd"),
+    ("US 10Y", "bond", "US10YT=RR", "rate"), ("US 2Y", "bond", "US2YT=RR", "rate"),
+]
 
 
 @dataclass
@@ -40,6 +52,8 @@ class Quote:
     change: float | None  # 등락률 %
     price: str = ""  # 표시용 현재가 (업종은 상승/하락 종목 수)
     code: str = ""
+    value: str | None = None  # 지표: 큰 글씨로 보일 값 (있으면 등락률 대신 이 값을 크게)
+    note: str | None = None  # 지표: 아래 줄 (등락률·bp)
 
 
 @dataclass
@@ -62,7 +76,7 @@ def _ratio(row: dict, key: str = "fluctuationsRatio") -> float | None:
         v = float(str(row.get(key)).replace(",", ""))
     except (TypeError, ValueError):
         return None
-    code = str((row.get("compareToPreviousPrice") or {}).get("code", ""))
+    code = str((row.get("compareToPreviousPrice") or row.get("fluctuationsType") or {}).get("code", ""))
     return -v if code in ("4", "5") and v > 0 else v
 
 
@@ -77,10 +91,42 @@ def indices() -> list[Index]:
     return out
 
 
-def top_mcap(n: int = 10) -> list[Quote]:
-    d = _get(f"https://m.stock.naver.com/api/stocks/marketValue/KOSPI?page=1&pageSize={n + 6}")
+def top_mcap(n: int = 10, market: str = "KOSPI") -> list[Quote]:
+    d = _get(f"https://m.stock.naver.com/api/stocks/marketValue/{market}?page=1&pageSize={n + 6}")
     rows = [r for r in d.get("stocks", []) if r.get("stockEndType") == "stock"]
     return [Quote(r["stockName"], _ratio(r), r.get("closePrice", ""), r.get("itemCode", "")) for r in rows[:n]]
+
+
+def _num(s) -> float | None:
+    try:
+        return float(str(s).replace(",", ""))
+    except (TypeError, ValueError):
+        return None
+
+
+def macro() -> list[Quote]:
+    """환율·원자재·금리 10개 (동시에 조회)."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    def one(item):
+        label, cat, code, fmt = item
+        try:
+            d = _get(f"https://m.stock.naver.com/front-api/marketIndex/productDetail?category={cat}&reutersCode={code}")["result"]
+        except Exception:
+            return Quote(label, None, "", code, "-", "조회 실패")
+        ratio, price = _ratio(d), _num(d.get("closePrice"))
+        if price is None:
+            return Quote(label, ratio, "", code, "-", "")
+        if fmt == "rate":  # 금리: 값은 %, 변동은 bp
+            diff = _num(d.get("fluctuations")) or 0
+            if ratio is not None and ratio < 0 and diff > 0:
+                diff = -diff
+            return Quote(label, ratio, "", code, f"{price:.3f}%", f"{diff * 100:+.1f}bp")
+        value = f"{price:,.1f}" if fmt == "fx" else (f"${price:,.2f}" if fmt == "usd" else f"{price:,.2f}")
+        return Quote(label, ratio, "", code, value, "-" if ratio is None else f"{ratio:+.2f}%")
+
+    with ThreadPoolExecutor(5) as pool:
+        return list(pool.map(one, MACRO))
 
 
 def _sectors() -> list[Quote]:
@@ -131,7 +177,8 @@ def view_data(view: str, ttl: float = 60) -> list[Quote] | None:
     hit = _cache.get(view)
     if hit and time.time() - hit[0] < ttl:
         return hit[1]  # type: ignore[return-value]
-    fn = {"top": top_mcap, "movers": movers, "portfolio": portfolio, "sectors": fav_sectors}[view]
+    fn = {"top": top_mcap, "kosdaq": lambda: top_mcap(market="KOSDAQ"), "movers": movers, "portfolio": portfolio,
+          "sectors": fav_sectors, "macro": macro}[view]
     try:
         data = fn()
     except Exception:

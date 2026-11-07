@@ -106,7 +106,7 @@ Ten cells drain **from the last one backwards**. Blinks and sends a macOS notifi
 <td valign="top">
 
 ### 6 · Korean stock heatmap
-Korean stocks coloured by daily change, like [HeatTab](https://heattab.app) (red up, blue down, the Korean convention). Switch between **top market cap, sector movers, your portfolio and watched sectors** with the middle button; press a tile to open a HeatTab new tab.
+Korean stocks coloured by daily change, like [HeatTab](https://heattab.app) (red up, blue down, the Korean convention). Switch between **KOSPI and KOSDAQ top 10, sector movers, your portfolio, watched sectors, and FX, oil, gold and US yields** with the middle button; press a tile to open a HeatTab new tab.
 
 <sub>→ [Guide: heatmap](docs/GUIDE.en.md#46-korean-stock-heatmap-page-6)</sub>
 

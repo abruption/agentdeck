@@ -440,12 +440,12 @@ def nav_device(brightness: int) -> dict[int, Button]:
 KR_UP, KR_DOWN = (229, 72, 77), (59, 111, 245)  # 한국식: 상승 빨강, 하락 파랑
 
 
-def heat_color(change: float | None) -> str:
-    """등락률이 클수록 진하게 (±6% 에서 최대)."""
+def heat_color(change: float | None, scale: float = 6.0) -> str:
+    """등락률이 클수록 진하게 (±scale% 에서 최대). 주식 ±6%, 환율·원자재·금리 ±1.5%."""
     if change is None:
         return BG
     base, tint = (31, 34, 51), (KR_UP if change >= 0 else KR_DOWN)
-    t = 0.25 + 0.75 * min(abs(change) / 6, 1.0) if abs(change) >= 0.05 else 0
+    t = 0.25 + 0.75 * min(abs(change) / scale, 1.0) if abs(change) >= 0.02 else 0
     return "#%02x%02x%02x" % tuple(int(b + (c - b) * t) for b, c in zip(base, tint))
 
 
@@ -460,7 +460,10 @@ def page_market(view: str, quotes) -> dict[int, Button]:
         p[0] = Button(header=VIEW_LABEL.get(view, ""), title="-", sub="config 에 종목 추가", bg=BG, accent=DIM)
         return p
     for i, q in enumerate(quotes[:10]):
-        title = "-" if q.change is None else f"{q.change:+.2f}%"
-        p[i] = Button(header=q.name, raw_header=True, header_fg="#ffffff", title=title, sub=q.price, bg=heat_color(q.change),
-                      fg="#ffffff")
+        if q.value is not None:  # 지표: 값을 크게, 등락을 아래에
+            title, sub = q.value, q.note or ""
+        else:
+            title, sub = ("-" if q.change is None else f"{q.change:+.2f}%"), q.price
+        p[i] = Button(header=q.name, raw_header=True, header_fg="#ffffff", title=title, sub=sub,
+                      bg=heat_color(q.change, 1.5 if q.value is not None else 6.0), fg="#ffffff")
     return p

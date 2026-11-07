@@ -45,6 +45,7 @@ WORDS: list[tuple[str, str]] = sorted([
     ("누르면 시작", "Press to start"), ("누르면 변경", "Press to change"), ("길게 한 번 더", "Hold again"),
     ("길게: 밝기", "Hold: bright"), ("짧게: 일시정지 · 길게: 취소", "Tap: pause · Hold: cancel"),
     ("'취소' 칸 또는 길게: 종료", "'Cancel' tile or hold: stop"), ("아무 칸: 계속", "Any tile: resume"),
+    ("코스피 상위", "KOSPI top"), ("코스닥 상위", "KOSDAQ top"), ("환율·원자재·금리", "FX · commodities · rates"),
     ("시총 상위", "Top market cap"), ("업종 등락", "Sector movers"), ("내 포트폴리오", "My portfolio"),
     ("관심 업종", "Watched sectors"), ("장 마감", "closed"), ("장중", "open"), ("히트맵", "Heatmap"),
     ("config 에 종목 추가", "add codes in config"), ("없는 업종", "unknown sector"), ("조회 실패", "lookup failed"),

@@ -253,10 +253,12 @@ Korean stocks coloured by daily change: **red is up, blue is down** (the Korean 
 
 | Each tap of the middle button shows | |
 |---|---|
-| Top market cap | Top 10 KOSPI stocks by market cap |
+| KOSPI top | Top 10 KOSPI stocks by market cap |
+| KOSDAQ top | Top 10 KOSDAQ stocks by market cap |
 | Sector movers | Today's 5 best and 5 worst sectors |
 | My portfolio | Stock codes in `market.portfolio` (e.g. `"005930"`) |
 | Watched sectors | 10 sector names in `market.sectors` (Naver Finance names) |
+| FX · commodities · rates | USD/KRW, 100JPY/KRW, EUR/KRW, dollar index, WTI, Brent, gold, silver, US 10Y and 2Y yields. Value large, change below; yields change in bp |
 
 - Pressing a tile opens a **new Chrome tab**; with the [HeatTab](https://heattab.app) extension installed, that tab is the full heatmap.
 - Refreshes every minute while this page is shown.
