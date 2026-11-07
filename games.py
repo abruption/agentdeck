@@ -1,4 +1,4 @@
-"""게임 페이지: 두더지 잡기 · 순서 기억 · 짝 맞추기 · 슬롯머신 · 블랙잭.
+"""게임 페이지: 두더지 잡기 · 순서 기억 · 짝 맞추기 · 슬롯머신 · 블랙잭 · 비디오 포커.
 
 판은 위 두 줄 10칸(0~9). 아래 줄은 페이지 넘김 버튼 그대로, 넓은 칸은 점수판.
 입력은 누르는 순간(press)에 처리해 반응을 빠르게 한다. 화면은 상태가 바뀔 때만 다시 보낸다.
@@ -24,7 +24,7 @@ SIZE = 196
 WIDE = (458, 196)
 SAVE = Path.home() / ".cache" / "d200" / "games.json"
 
-GAMES = ["mole", "simon", "pairs", "slot", "bj"]  # 메뉴 열 순서 (윗칸·아랫칸 어느 쪽을 눌러도 시작)
+GAMES = ["mole", "simon", "pairs", "slot", "bj", "poker"]  # 메뉴 칸 순서 (0번 칸부터)
 LOWER_IS_BETTER = {"pairs"}  # 짝 맞추기는 시도 횟수가 적을수록 좋은 기록
 EMOJI_FONT = "/System/Library/Fonts/Apple Color Emoji.ttc"
 PAIR_CARDS = ["🐟", "🐙", "🦀", "🐢", "🦈"]  # 어항 친구들 5쌍
@@ -37,6 +37,9 @@ SLOT_START = 20  # 슬롯·블랙잭이 같이 쓰는 코인
 BJ_HIT, BJ_STAND = 4, 9  # 블랙잭: 윗줄 끝 = 한 장 더, 아랫줄 끝 = 그만 (베팅 중엔 딜 / 베팅액)
 BJ_BETS = [1, 2, 5, 10]
 SUITS = "♠♥♦♣"
+POKER_PAY = [  # (족보, 배당) 잭스 오어 베터 9/6, 건 코인에 곱한다
+    ("로열 플러시", 250), ("스트레이트 플러시", 50), ("포카드", 25), ("풀하우스", 9), ("플러시", 6),
+    ("스트레이트", 4), ("트리플", 3), ("투페어", 2), ("J 이상 원페어", 1)]
 RANKS = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"]
 MOLE_SEC = 30  # 두더지 한 판 길이
 SIMON_COLORS = ["#f7768e", "#ff9e64", "#e0af68", "#9ece6a", "#73daca",
@@ -120,7 +123,8 @@ def simon_tile(idx: int, lit: bool, mark: str = "") -> bytes:
 def menu_tile(kind: str, best: str) -> bytes:
     img = Image.new("RGB", (SIZE, SIZE), (24, 26, 38))
     d = _Draw(img)
-    title = {"mole": "두더지 잡기", "simon": "순서 기억", "pairs": "짝 맞추기", "slot": "슬롯머신", "bj": "블랙잭"}[kind]
+    title = {"mole": "두더지 잡기", "simon": "순서 기억", "pairs": "짝 맞추기", "slot": "슬롯머신", "bj": "블랙잭",
+             "poker": "비디오 포커"}[kind]
     if kind == "mole":
         d.ellipse((48, 120, 148, 150), fill=(70, 46, 30))
         d.rounded_rectangle((66, 48, 130, 136), 30, fill=(140, 98, 66))
@@ -138,6 +142,9 @@ def menu_tile(kind: str, best: str) -> bytes:
                 _paste_center(img, _emoji(face, 40), x + 25, 95)
             else:
                 d.text((x + 25, 95), "?", font=_kr(34, 6), fill=(170, 182, 235), anchor="mm")
+    elif kind == "poker":
+        for k, c in enumerate((("10", "♠"), ("J", "♠"), ("Q", "♠"))):
+            img.paste(Image.open(io.BytesIO(play_card(c, "", 0.46))), (34 + k * 44, 50))
     elif kind == "bj":
         img.paste(Image.open(io.BytesIO(play_card(("A", "♠"), "", 0.55))), (36, 46))
         img.paste(Image.open(io.BytesIO(play_card(("K", "♥"), "", 0.55))), (64, 54))
@@ -248,7 +255,7 @@ def play_card(card: tuple[str, str] | None, glow: str = "", scale: float = 1.0) 
     rank, suit = card
     red = suit in "♥♦"
     col = (210, 40, 50) if red else (25, 25, 35)
-    edge = {"win": (90, 200, 110), "lose": (230, 80, 90)}.get(glow, (200, 200, 210))
+    edge = {"win": (90, 200, 110), "lose": (230, 80, 90), "hold": (250, 200, 60)}.get(glow, (200, 200, 210))
     d.rounded_rectangle(box, int(14 * scale), fill=(252, 252, 248), outline=edge, width=max(2, int((7 if glow else 3) * scale)))
     d.text((x0 + int(12 * scale), y0 + int(8 * scale)), rank, font=_kr(int(40 * scale), 6), fill=col, anchor="lt")
     d.text((x0 + w // 2, y0 + int(h * 0.62)), suit, font=_kr(int(78 * scale), 6), fill=col, anchor="mm")
@@ -296,6 +303,36 @@ def _layout(cards: list, slots: int = 4) -> list[tuple]:
         out.append(tuple(cards[i:i + n]))
         i += n
     return out
+
+
+def poker_hand(cards: list) -> tuple[str, int] | None:
+    """5장 족보 → (이름, 배당). 잭스 오어 베터 기준, 못 미치면 None."""
+    order = {r: i + 2 for i, r in enumerate(["2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K", "A"])}
+    vals = sorted((order[r] for r, _ in cards), reverse=True)
+    counts = sorted(((vals.count(v), v) for v in set(vals)), reverse=True)
+    flush = len({s for _, s in cards}) == 1
+    uniq = sorted(set(vals))
+    straight = len(uniq) == 5 and (uniq[-1] - uniq[0] == 4 or uniq == [2, 3, 4, 5, 14])
+    pay = dict(POKER_PAY)
+    if straight and flush:
+        name = "로열 플러시" if uniq[0] == 10 else "스트레이트 플러시"
+    elif counts[0][0] == 4:
+        name = "포카드"
+    elif counts[0][0] == 3 and counts[1][0] == 2:
+        name = "풀하우스"
+    elif flush:
+        name = "플러시"
+    elif straight:
+        name = "스트레이트"
+    elif counts[0][0] == 3:
+        name = "트리플"
+    elif counts[0][0] == 2 and counts[1][0] == 2:
+        name = "투페어"
+    elif counts[0][0] == 2 and counts[0][1] >= 11:
+        name = "J 이상 원페어"
+    else:
+        return None
+    return name, pay[name]
 
 
 def hand_value(cards: list) -> tuple[int, bool]:
@@ -373,6 +410,10 @@ class Games:
         self.hole = True  # 딜러 두 번째 카드를 가렸는지
         self.result = ""  # win | lose | push | bj
         self.next_draw = 0.0
+        # 비디오 포커
+        self.hand: list[tuple[str, str]] = []
+        self.held = [False] * 5
+        self.poker_win: tuple[str, int] | None = None
 
     @property
     def active(self) -> bool:
@@ -381,6 +422,8 @@ class Games:
             return any(self.spinning) or time.time() < self.win_until
         if self.mode == "bj":
             return self.phase == "dealer" or time.time() < self.win_until
+        if self.mode == "poker":
+            return time.time() < self.win_until
         return self.mode != "menu" and self.phase != "over"
 
     # ---- 저장 ----
@@ -401,7 +444,7 @@ class Games:
         v = self.best.get(mode, 0)
         if mode == "pairs":
             return f"최고 {v}번" if v else "기록 없음"
-        if mode in ("slot", "bj"):
+        if mode in ("slot", "bj", "poker"):
             return f"코인 {self.coins}"
         return f"최고 {v}"
 
@@ -430,8 +473,8 @@ class Games:
         with self.lock:
             now = time.time()
             if self.mode == "menu":
-                if idx < BOARD and idx % 5 < len(GAMES):
-                    self.start(GAMES[idx % 5])
+                if idx < len(GAMES):
+                    self.start(GAMES[idx])
                 return
             if self.phase == "over":
                 if now - self.over_at > 0.8:  # 끝난 직후 실수로 누른 건 무시
@@ -439,6 +482,9 @@ class Games:
                 return
             if self.mode == "bj":
                 self._press_bj(idx, now)
+                return
+            if self.mode == "poker":
+                self._press_poker(idx, now)
                 return
             if idx >= BOARD:
                 return
@@ -594,6 +640,38 @@ class Games:
             self.win_until = now + 1.6
         self._save_coins()
 
+    # ---- 비디오 포커 ----
+    def _press_poker(self, idx: int, now: float) -> None:
+        """윗줄 = 카드, 아랫줄 = 킵(게임 중) / 베팅액·딜(대기 중). 넓은 칸 = 딜·교체."""
+        if self.phase == "play":
+            if idx < 5 or 5 <= idx < BOARD:
+                k = idx % 5
+                self.held[k] = not self.held[k]
+            elif idx >= 13:  # 교체
+                self.hand = [c if h else self._draw() for c, h in zip(self.hand, self.held)]
+                self.poker_win = poker_hand(self.hand)
+                pay = self.bet_now * self.poker_win[1] if self.poker_win else 0
+                self.coins += pay
+                self.win = pay - self.bet_now
+                self.phase = "done"
+                if pay:
+                    self.win_until = now + (2.4 if self.poker_win[1] >= 25 else 1.4)
+                self._save_coins()
+            return
+        if 5 <= idx <= 8:  # 베팅액 고르기
+            self.bet = BJ_BETS[idx - 5]
+        elif idx == 9 or idx >= 13:
+            if self.coins <= 0:
+                self.coins = SLOT_START
+            self.shoe = []  # 포커는 매 판 새 카드 한 벌
+            self.shoe = [(r, s) for r in RANKS for s in SUITS]
+            self.rnd.shuffle(self.shoe)
+            self.bet_now = min(self.bet, self.coins)
+            self.coins -= self.bet_now
+            self.hand = [self.shoe.pop() for _ in range(5)]
+            self.held, self.poker_win, self.phase = [False] * 5, None, "play"
+            self._save_coins()
+
     def _save_coins(self) -> None:
         self.best["slot_coins"] = self.coins
         self.best["slot"] = max(self.best.get("slot", 0), self.coins)
@@ -612,6 +690,8 @@ class Games:
                 self.rnd.shuffle(self.cards)
                 self.matched, self.open = set(), []
                 self.phase, self.peek_until, self.started = "play", now + 1.5, now
+            elif mode == "poker":
+                self.phase, self.hand, self.held, self.poker_win = "bet", [], [False] * 5, None
             elif mode == "bj":
                 self.phase, self.player, self.dealer, self.result = "bet", [], [], ""
                 self.bet = min(self.bet, max(1, self.coins)) if self.coins else 2
@@ -691,8 +771,6 @@ class Games:
                 out = {i: blank_tile() for i in range(BOARD)}
                 for c, g in enumerate(GAMES):
                     out[c] = menu_tile(g, self.best_text(g))
-                out.update({5: mole_tile("mole"), 6: simon_tile(6, True), 7: card_tile("🐢", "up"),
-                            8: reel_tile("7"), 9: play_card(("A", "♠"))})
                 return out
             now = time.time()
             if self.mode == "pairs":
@@ -705,6 +783,21 @@ class Games:
                         out[i] = card_tile(face, "wrong" if len(self.open) == 2 and i in self.open else "up")
                     else:
                         out[i] = card_tile(None, "down")
+                return out
+            if self.mode == "poker":
+                out = {}
+                glow_on = now < self.win_until and int(now * 5) % 2 == 0
+                for k in range(5):
+                    card = self.hand[k] if self.hand else None
+                    g = "hold" if self.phase == "play" and self.held[k] else ("win" if self.poker_win and glow_on else "")
+                    out[k] = play_card(card, g)
+                    if self.phase == "play":
+                        out[5 + k] = bj_button("킵" if self.held[k] else "킵?", "누르면 남김" if not self.held[k] else "남김",
+                                               "#e0af68", self.held[k])
+                    elif k < 4:
+                        out[5 + k] = bj_button(str(BJ_BETS[k]), "코인 걸기", "#7dcfff", self.bet == BJ_BETS[k])
+                    else:
+                        out[9] = bj_button("딜", f"{min(self.bet, max(self.coins, 1))}코인", "#9ece6a")
                 return out
             if self.mode == "bj":
                 pg = {"win": "win", "bj": "win", "lose": "lose"}.get(self.result, "")
@@ -753,8 +846,24 @@ class Games:
             best = self.best.get(self.mode, 0)
             if self.mode == "menu":
                 return wide_panel("게임", "", ["하고 싶은 게임 칸을 누르세요",
-                                              "두더지 · 순서 · 짝 맞추기 · 슬롯 · 블랙잭",
+                                              "두더지 · 순서 · 짝 · 슬롯 · 블랙잭 · 포커",
                                               "가운데 버튼: 게임 중 메뉴로"], "#9ece6a")
+            if self.mode == "poker":
+                if self.phase == "play":
+                    now_hand = poker_hand(self.hand)
+                    return wide_panel("비디오 포커", "교체", ["킵 고르고 여기 누르기",
+                                                          f"지금 패: {now_hand[0] if now_hand else '없음'}",
+                                                          f"베팅 {self.bet_now}코인 · 코인 {self.coins}"], "#e0af68")
+                if self.phase == "done":
+                    if self.poker_win:
+                        name, mult = self.poker_win
+                        return wide_panel(name + "!", f"+{self.bet_now * mult}",
+                                          [f"{mult}배 · 코인 {self.coins}", "딜 또는 여기: 다음 판"], "#9ece6a")
+                    return wide_panel("아쉬워요", f"-{self.bet_now}", [f"코인 {self.coins}", "딜 또는 여기: 다음 판"],
+                                      "#f7768e")
+                return wide_panel("비디오 포커", str(self.coins), ["베팅 고르고 딜",
+                                                               "J 이상 원페어 1배 · 투페어 2 · 트리플 3",
+                                                               "스트레이트 4 · 플러시 6 · 풀하우스 9 …"], "#e0af68")
             if self.mode == "bj":
                 p = hand_value(self.player)[0] if self.player else 0
                 if self.phase == "bet":
@@ -808,4 +917,5 @@ class Games:
             now = time.time()
             return (self.mode, self.phase, self.score, self.pos, len(self.seq), sec, self.new_best, self.coins,
                     any(self.spinning), now < self.win_until, now < self.peek_until, len(self.matched),
-                    len(self.player), len(self.dealer), self.hole, self.result, self.bet)
+                    len(self.player), len(self.dealer), self.hole, self.result, self.bet, tuple(self.held),
+                    tuple(self.hand))

@@ -216,6 +216,16 @@ def game_gif(path: str) -> None:
     snap(700)
     g.phase, g.result, g.win, g.coins, g.win_until = "done", "win", 2, 74, _t.time() + 99
     snap(1500)
+    # 비디오 포커: 킵 고르고 교체 → 풀하우스
+    g.mode, g.win_until, g.bet_now, g.coins = "poker", 0, 2, 72
+    g.hand, g.held, g.poker_win, g.phase = [("K", "♥"), ("4", "♠"), ("K", "♦"), ("K", "♠"), ("9", "♣")], [False] * 5, None, "play"
+    snap(900)
+    for k in (0, 2, 3):
+        g.held[k] = True
+        snap(350)
+    g.hand, g.phase = [("K", "♥"), ("4", "♣"), ("K", "♦"), ("K", "♠"), ("4", "♥")], "done"
+    g.poker_win, g.coins = ("풀하우스", 9), 90
+    snap(1800)
     frames[0].save(path, save_all=True, append_images=frames[1:], duration=ms, loop=0, optimize=True)
 
 

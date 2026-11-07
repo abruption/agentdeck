@@ -271,7 +271,7 @@ Korean stocks coloured by daily change: **red is up, blue is down** (the Korean 
 
 <img src="images/page7-games.en.gif" width="560">
 
-The top ten keys become the game board. The menu shows five games across the top row; press a game or the key below it to start. The wide tile is the scoreboard, and best scores are saved.
+The top ten keys become the game board. The menu shows six games; press one to start. The wide tile is the scoreboard, and best scores are saved.
 
 | Game | How to play |
 |---|---|
@@ -279,7 +279,8 @@ The top ten keys become the game board. The menu shows five games across the top
 | 🧠 **Memory** | Keys light up in order; press them back in the same order. Each round adds one more, and a wrong key ends the game, marking it with ✕ and the right one with ! |
 | 🃏 **Pairs** | Find five pairs of aquarium friends (fish, octopus, crab, turtle, shark). Every card shows for 1.5 s at the start. **Fewer tries** is a better score |
 | 🃏 **Blackjack** | The four left keys on the top row are the dealer's cards and the bottom row are yours. **DEAL** (top right) starts a hand; then **HIT** or **STAND**, or press the wide tile on your first two cards to **double** (twice the bet, one more card). The bottom-right key picks a bet of 1, 2, 5 or 10 coins. The dealer draws to 16 and stands on 17. Blackjack pays 3:2 |
-| 🎰 **Slots** | Press a side key (the lever) to spin three reels for 1 coin, then stop each with the **STOP** key below it. Three alike pays 50 for 7s, 30 diamonds, 15 stars, 10 bells, 6 lemons, 5 cherries; any two alike pays 2. You start with 20 coins (shared with blackjack) and get 20 more if you run out |
+| 🂡 **Video poker** | The top five keys are your cards and the key under each one **holds** it. Before a hand, pick a bet (1, 2, 5 or 10) on the bottom row and press **DEAL**. Hold the cards you want, then press the **wide tile** to draw. Jacks or better 1x · two pair 2 · three of a kind 3 · straight 4 · flush 6 · full house 9 · four of a kind 25 · straight flush 50 · royal flush 250 |
+| 🎰 **Slots** | Press a side key (the lever) to spin three reels for 1 coin, then stop each with the **STOP** key below it. Three alike pays 50 for 7s, 30 diamonds, 15 stars, 10 bells, 6 lemons, 5 cherries; any two alike pays 2. You start with 20 coins (shared with blackjack and poker) and get 20 more if you run out |
 
 - Keys react **the moment you press**, not on release.
 - After a game, press the board to play again or the **middle button** for the menu. The middle button also quits a game in progress.
