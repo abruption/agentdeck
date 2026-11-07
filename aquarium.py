@@ -44,6 +44,55 @@ FISH_SPRITES = [  # 칸(28px)의 절반 정도 크기
      "......BB.......",
      ],
 ]
+PUFFER = ["...BBBB...",  # 복어 (왼쪽을 봄)
+          ".BBBBBBB.F",
+          "BEBBSBSBFF",
+          "BBBBBBBBBF",
+          ".BBBSBBB.F",
+          "...BBBB..."]
+PUFFER_BIG = ["...P.P.P...",  # 부푼 복어
+              "..BBBBBBB..",
+              "PBBBBBBBBBP",
+              ".BEBSBSBBBF",
+              "PBBBBBBBBFF",
+              ".BBBSBSBBBF",
+              "PBBBBBBBBBP",
+              "..BBBBBBB..",
+              "...P.P.P..."]
+PUFFER_COLORS = ((240, 200, 90), (250, 225, 140), (150, 110, 40))
+JELLY = [["..JJJJJ..",  # 해파리: 갓을 편 모양 / 오므린 모양
+          ".JKJJJJJ.",
+          "JKJJJJJJJ",
+          "JJJJJJJJJ",
+          ".T.T.T.T.",
+          ".T..T.T..",
+          "..T.T..T.",
+          ".T..T.T.."],
+         ["...JJJ...",
+          "..JKJJJ..",
+          ".JJJJJJJ.",
+          "..JJJJJ..",
+          "..T.T.T..",
+          ".T..T..T.",
+          "..T.T.T..",
+          "..T...T..",
+          "...T.T..."]]
+JELLY_COLORS = [{"J": (225, 150, 235), "K": (255, 215, 250), "T": (200, 120, 215)},
+                {"J": (150, 200, 255), "K": (220, 240, 255), "T": (120, 170, 235)}]
+CRAB = [["..E...E..",  # 게: 걷는 두 장면
+         "RR.E.E.RR",
+         "RRRRRRRRR",
+         ".RDRRRDR.",
+         "..RRRRR..",
+         ".R.R.R.R."],
+        ["..E...E..",
+         "RR.E.E.RR",
+         "RRRRRRRRR",
+         ".RDRRRDR.",
+         "..RRRRR..",
+         "R.R...R.R"]]
+CRAB_COLORS = {"R": (230, 85, 60), "D": (165, 50, 40), "E": (20, 20, 30)}
+
 FISH_COLORS = [  # (몸, 지느러미, 무늬)
     ((255, 140, 66), (255, 196, 120), (255, 255, 255)),   # 주황
     ((255, 214, 64), (255, 236, 150), (240, 150, 40)),    # 노랑
@@ -62,6 +111,24 @@ class Fish:
     colors: tuple
     phase: float = field(default_factory=lambda: random.uniform(0, 6.28))
     target: tuple[float, float] | None = None
+    kind: str = "fish"  # fish | puffer
+    puff: float = 0.0  # 복어가 부푼 채로 남은 시간
+
+
+@dataclass
+class Jelly:
+    x: float
+    y: float
+    colors: dict
+    phase: float = field(default_factory=lambda: random.uniform(0, 6.28))
+
+
+@dataclass
+class Crab:
+    x: float
+    vx: float
+    walk: float = 0.0
+    rest: float = 0.0  # 멈춰 있는 남은 시간
 
 
 @dataclass
@@ -73,6 +140,16 @@ class Particle:
     life: float = 99.0
 
 
+def _sprite(img: Image.Image, rows: list[str], x: int, y: int, pal: dict, flip: bool = False) -> None:
+    for ry, row in enumerate(rows):
+        for rx, ch in enumerate(row[::-1] if flip else row):
+            c = pal.get(ch)
+            if c:
+                px, py = x + rx, y + ry
+                if 0 <= px < W and 0 <= py < H:
+                    img.putpixel((px, py), c)
+
+
 class Aquarium:
     def __init__(self, n_fish: int = 14, seed: int | None = None) -> None:
         rnd = random.Random(seed)
@@ -80,6 +157,11 @@ class Aquarium:
         self.t = 0.0
         self.fish = [Fish(rnd.uniform(5, W - 15), rnd.uniform(8, SAND_Y - 12), rnd.choice([-1, 1]) * rnd.uniform(5, 11),
                           rnd.choice(FISH_SPRITES), rnd.choice(FISH_COLORS)) for _ in range(n_fish)]
+        for _ in range(2):  # 복어
+            self.fish.append(Fish(rnd.uniform(5, W - 15), rnd.uniform(10, SAND_Y - 14), rnd.choice([-1, 1]) * rnd.uniform(3, 5),
+                                  PUFFER, PUFFER_COLORS, kind="puffer"))
+        self.jellies = [Jelly(rnd.uniform(10, W - 20), rnd.uniform(8, 40), JELLY_COLORS[i % 2]) for i in range(2)]
+        self.crabs = [Crab(rnd.uniform(5, W - 15), rnd.choice([-1, 1]) * rnd.uniform(4, 7)) for _ in range(2)]
         self.parts: list[Particle] = []
         self.weeds = [(x, rnd.randint(10, 26), rnd.choice([(46, 160, 90), (70, 190, 110), (30, 130, 80)]))
                       for x in sorted(rnd.sample(range(3, W - 3), 14))]
@@ -122,6 +204,41 @@ class Aquarium:
                 f.vx = -f.vx
                 f.x = min(max(f.x, 1), W - w - 1)
             f.y = min(max(f.y, 4), SAND_Y - len(f.sprite) - 1)
+        for f in self.fish:  # 복어: 가끔 부풀었다가 가라앉기
+            if f.kind == "puffer":
+                if f.puff > 0:
+                    f.puff -= dt
+                    f.sprite = PUFFER_BIG if f.puff > 0 else PUFFER
+                elif self.rnd.random() < 0.01:
+                    f.puff = self.rnd.uniform(2.5, 4.0)
+        for j in self.jellies:  # 해파리: 오므릴 때 위로, 나머지는 천천히 가라앉기
+            j.phase += dt
+            pulse = math.sin(j.phase * 2.4)
+            j.y += (-9 if pulse > 0.6 else 1.6) * dt
+            j.x += math.sin(j.phase * 0.5) * 1.2 * dt
+            j.y = min(max(j.y, 2), SAND_Y - 16)
+            j.x = min(max(j.x, 1), W - 10)
+        sand_food = [p for p in self.parts if p.kind == "food" and p.y >= SAND_Y - 2]
+        for c in self.crabs:  # 게: 모래 위 옆걸음, 바닥 먹이로 이동
+            near = min(sand_food, key=lambda p: abs(p.x - c.x - 4), default=None)
+            if near and abs(near.x - c.x - 4) < 45:
+                c.rest = 0
+                c.vx = math.copysign(abs(c.vx) or 5, near.x - c.x - 4)
+                if abs(near.x - c.x - 4) < 2:
+                    near.life = 0
+                    self.parts.append(Particle(c.x + 4, SAND_Y - 8, -5, "heart", 1.0))
+            if c.rest > 0:
+                c.rest -= dt
+                continue
+            c.x += c.vx * dt
+            c.walk += dt
+            if c.x < 1 or c.x > W - 10:
+                c.vx = -c.vx
+                c.x = min(max(c.x, 1), W - 10)
+            if self.rnd.random() < 0.01:
+                c.rest = self.rnd.uniform(1, 3)
+                if self.rnd.random() < 0.5:
+                    c.vx = -c.vx
         # 거품: 수초 아래·무작위에서 생성
         if self.rnd.random() < 0.35:
             self.parts.append(Particle(self.rnd.uniform(2, W - 2), SAND_Y - 1, -self.rnd.uniform(6, 12), "bubble"))
@@ -165,6 +282,12 @@ class Aquarium:
                     img.putpixel((px, SAND_Y - k), c)
                     if k % 4 == 2 and 0 <= px + 1 < W:
                         img.putpixel((px + 1, SAND_Y - k), c)
+        for c in self.crabs:  # 게는 수초 앞, 모래 위
+            frame = CRAB[int(c.walk * 6) % 2] if c.rest <= 0 else CRAB[0]
+            _sprite(img, frame, int(c.x), SAND_Y - len(frame) + 2, CRAB_COLORS)
+        for j in self.jellies:  # 해파리는 물고기 뒤
+            frame = JELLY[1] if math.sin(j.phase * 2.4) > 0.6 else JELLY[0]
+            _sprite(img, frame, int(j.x), int(j.y), j.colors)
         for p in self.parts:
             x, y = int(p.x), int(p.y)
             if not (0 <= x < W and 0 <= y < H):
@@ -178,6 +301,11 @@ class Aquarium:
                     if 0 <= x + dx < W and 0 <= y + dy < H:
                         img.putpixel((x + dx, y + dy), (255, 120, 150))
         for f in self.fish:
+            if f.kind == "puffer":
+                body, fin, mark = f.colors
+                _sprite(img, f.sprite, int(f.x), int(f.y),
+                        {"B": body, "F": fin, "S": mark, "E": (20, 20, 30), "P": (255, 240, 200)}, flip=f.vx > 0)
+                continue
             body, fin, mark = f.colors
             right = f.vx > 0
             for ry, row in enumerate(f.sprite):
