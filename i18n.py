@@ -37,6 +37,12 @@ MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", 
 
 # 긴 문구부터 (부분 치환)
 WORDS: list[tuple[str, str]] = sorted([
+    ("두더지 잡기", "Whack-a-mole"), ("순서 기억", "Memory"), ("황금 +3 · 폭탄 -3", "Gold +3 · Bomb -3"),
+    ("남은 시간", "Time left"), ("새 기록!", "New best!"), ("게임 끝", "Game over"), ("게임 그만", "Quit game"),
+    ("판 누르기: 다시 하기", "Tap board: play again"), ("가운데: 메뉴", "Middle: menu"), ("잘 보세요", "Watch"),
+    ("따라 누르기", "Repeat"), ("최고 기록", "Best"), ("두더지", "Mole"), ("순서", "Memory"),
+    ("왼쪽:", "Left:"), ("오른쪽:", "Right:"), ("(30초)", "(30s)"), ("헛방", "Miss"), ("최고", "Best"),
+    ("게임", "Games"), ("메뉴", "Menu"),
     ("지금 쓰기 좋은", "Best now"), ("다음 리셋", "Next reset"), ("시간 대비", "vs time"),
     ("한도 정보 없음", "no data"), ("정보 없음", "no data"), ("데이터 없음", "no data"),
     ("연결 안 됨·미설정", "offline / not set"), ("연결 안 됨", "offline"), ("스튜디오 OFF", "Studio OFF"),

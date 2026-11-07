@@ -21,6 +21,7 @@ from pages import (LLM, Limit, nav, nav_device, nav_worktrees, page_device, page
                    page_market, page_studio, page_summary, page_worktrees)
 import market
 from aquarium import Aquarium
+from games import Games
 from config import CFG
 from mole import MOLE_HOSTS, dryrun_info, empty_trash, mole_status, refresh_dryrun, run_purge, trash_info
 from machines import MACHINES
@@ -35,8 +36,10 @@ REFRESH_SEC = 30
 BRIGHTNESS_STEPS = [20, 50, 80, 100]
 LONG_PRESS = 0.8
 W5, WEEK = timedelta(hours=5), timedelta(days=7)
-PAGES = 7
-AQUA_PAGE = 7  # 어항 (넘김 순서 마지막, 화면보호기로도 사용)
+PAGES = 8
+GAME_PAGE = 7  # 게임: 두더지 잡기 · 순서 기억
+AQUA_PAGE = 8  # 어항 (넘김 순서 마지막, 화면보호기로도 사용)
+GAME_TICK = 0.05
 AQUA_FPS = 5
 WT_PAGE = 16  # 워크트리: 작업 현황 넓은 칸에서 들어가는 하위 페이지 (넘김 순서 밖)
 DEV_PAGE = 17  # 기기 상세: 머신 페이지에서 컴퓨터를 눌러 들어가는 하위 페이지
@@ -122,6 +125,9 @@ class Dashboard:
         self.aquarium = Aquarium(int(CFG.get("aquarium_fish", 14)))  # 물고기 수 (config)
         self.aqua_thread: threading.Thread | None = None
         self.aqua_entered = 0.0
+        self.games = Games()
+        self.game_thread: threading.Thread | None = None
+        self.game_handled: set[int] = set()  # 누를 때 이미 처리한 칸 (뗄 때 무시)
         self.saver_from: int | None = None  # 화면보호기로 들어오기 전 페이지 (None 이면 직접 들어옴)
         self.last_input = time.time()
         self.saver_sec = float(CFG.get("screensaver_min", 10)) * 60  # 0 이면 화면보호기 끔
@@ -148,11 +154,26 @@ class Dashboard:
             return
         if ev.action == "press":
             self.pressed_at[ev.index] = time.time()
+            if self.page == GAME_PAGE and (ev.index < 10 or ev.index >= 13):  # 게임은 누르는 순간 처리
+                self.last_input = time.time()
+                self.game_handled.add(ev.index)
+                self.games.press(ev.index)
+                self.ensure_game_loop()
+                self.render_game()
             return
         if ev.action != "release":
             return
         held = time.time() - self.pressed_at.pop(ev.index, time.time())
         self.last_input = time.time()
+        if ev.index in self.game_handled:
+            self.game_handled.discard(ev.index)
+            return
+        if self.page == GAME_PAGE and ev.index in (10, 12):
+            self.games.menu()  # 페이지를 떠나면 게임은 메뉴로
+        if self.page == GAME_PAGE and ev.index == 11 and held < LONG_PRESS and self.games.mode != "menu":
+            self.games.menu()  # 게임 중 가운데 짧게 = 메뉴로
+            self.render()
+            return
         if self.page == AQUA_PAGE:  # 어항: 짧게 = 먹이, 길게 = 나가기
             if held >= LONG_PRESS:
                 self.leave_aquarium()
@@ -348,6 +369,35 @@ class Dashboard:
             self.render()
             time.sleep(max(0.0, 1 / AQUA_FPS - (time.time() - t0)))
 
+    # ---- 게임 (7페이지) ----
+    def ensure_game_loop(self) -> None:
+        if not (self.game_thread and self.game_thread.is_alive()):
+            self.game_thread = threading.Thread(target=self.game_loop, daemon=True)
+            self.game_thread.start()
+
+    def game_loop(self) -> None:
+        """게임 중에는 짧은 간격으로 시간을 진행하고, 화면이 바뀔 때만 다시 보낸다."""
+        last = None
+        while self.page == GAME_PAGE and self.games.active and not self.stop.is_set():
+            self.games.tick()
+            key = (tuple(self.games.tiles().items()), self.games.wide_key())
+            if key != last:
+                last = key
+                self.render_game()
+            time.sleep(GAME_TICK)
+        if self.page == GAME_PAGE:
+            self.render_game()  # 끝 화면
+
+    def render_game(self) -> None:
+        with self.render_lock:
+            try:
+                body = {i: Button(image=p) for i, p in self.games.tiles().items()}
+                middle = ("메뉴", "게임 그만") if self.games.mode != "menu" else None
+                self.deck.set_buttons({**body, **nav(GAME_PAGE, PAGES, self.brightness, middle)},
+                                      small_png=self.games.wide())
+            except Exception as e:
+                print(f"{datetime.now():%H:%M:%S} game render error: {e}", flush=True)
+
     # ---- 주식 히트맵(6페이지) ----
     def refresh_market(self) -> None:
         if not market.MARKET_ENABLED:
@@ -462,6 +512,9 @@ class Dashboard:
         return chips
 
     def render(self) -> None:
+        if self.page == GAME_PAGE:
+            self.render_game()
+            return
         with self.render_lock:
             now = datetime.now(timezone.utc)
             if self.page == AQUA_PAGE:
@@ -588,6 +641,8 @@ class Dashboard:
                     if alert and self.saver_from is not None:
                         self.leave_aquarium(5 if self.pomo.state == "done" else 3)
                     continue
+                if self.page == GAME_PAGE and self.games.active:
+                    continue  # 게임 중엔 화면보호기·주기 갱신 없음
                 if self.saver_sec and not alert and time.time() - self.last_input > self.saver_sec:
                     self.enter_aquarium(saver=True)
                     continue

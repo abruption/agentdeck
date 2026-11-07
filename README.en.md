@@ -115,13 +115,24 @@ Korean stocks coloured by daily change, like [HeatTab](https://heattab.app) (red
 <tr>
 <td valign="top">
 
-### 7 · Aquarium screensaver
-The whole deck becomes **one aquarium**. Fish, pufferfish, jellyfish, crabs, a turtle, an octopus and a shark roam across the keys, and pressing a key drops **food** there. It starts by itself when the deck sits idle and steps aside when an alert comes in.
+### 7 · Games
+The top ten keys become a game board: **whack-a-mole** (30 s, golden +3, bomb −3) and a **memory** game where you repeat the order keys light up in. Best scores are saved.
 
-<sub>→ [Guide: aquarium](docs/GUIDE.en.md#47-aquarium-screensaver-page-7)</sub>
+<sub>→ [Guide: games](docs/GUIDE.en.md#47-games-page-7)</sub>
 
 </td>
-<td><img src="docs/images/page7-aquarium.gif" alt="Aquarium"></td>
+<td><img src="docs/images/page7-games.en.gif" alt="Games"></td>
+</tr>
+<tr>
+<td><img src="docs/images/page8-aquarium.gif" alt="Aquarium"></td>
+<td valign="top">
+
+### 8 · Aquarium screensaver
+The whole deck becomes **one aquarium**. Fish, pufferfish, jellyfish, crabs, a turtle, an octopus and a shark roam across the keys, and pressing a key drops **food** there. It starts by itself when the deck sits idle and steps aside when an alert comes in.
+
+<sub>→ [Guide: aquarium](docs/GUIDE.en.md#48-aquarium-screensaver-page-8)</sub>
+
+</td>
 </tr>
 </table>
 

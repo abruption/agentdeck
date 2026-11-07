@@ -148,6 +148,42 @@ def aquarium_gif(path: str) -> None:
     frames[0].save(path, save_all=True, append_images=frames[1:], duration=200, loop=0, optimize=True)
 
 
+def game_gif(path: str) -> None:
+    """7페이지 게임: 두더지 잡기 몇 장면 + 순서 기억 몇 장면 (각본대로)."""
+    import time as _t
+
+    import games
+    from d200 import Button
+
+    g = games.Games()
+    g.best = {"mole": 31, "simon": 9}
+    frames, ms = [], []
+
+    def snap(dur: int, middle=("메뉴", "게임 그만")) -> None:
+        body = {i: Button(image=p) for i, p in g.tiles().items()}
+        frames.append(device_mockup({**body, **nav(7, 8, 80, middle)}, g.wide(), 0.5))
+        ms.append(dur)
+
+    g.menu()
+    snap(1400, None)
+    g.mode, g.phase, g.score = "mole", "play", 0
+    script = [({2: "mole", 6: "mole"}, 0), ({2: "hit", 6: "mole", 8: "bomb"}, 1), ({6: "hit", 8: "bomb", 4: "gold"}, 2),
+              ({4: "hit", 0: "mole"}, 5), ({0: "mole", 7: "mole", 9: "bomb"}, 5), ({0: "hit", 7: "mole", 9: "boom"}, 3),
+              ({7: "hit", 3: "mole"}, 4), ({3: "hit", 5: "gold"}, 5)]
+    for k, (holes, score) in enumerate(script):
+        g.holes = {i: (s, 1e12) for i, s in holes.items()}
+        g.score, g.end_at = score, _t.time() + 22 - k * 1.5
+        snap(450)
+    g.mode, g.seq, g.score = "simon", [2, 7, 4, 9], 3
+    for lit in (2, None, 7, None, 4, None, 9, None):
+        g.phase, g.lit = "show", lit
+        snap(380 if lit is not None else 160)
+    for k, lit in enumerate((2, 7, 4, 9)):
+        g.phase, g.pos, g.lit = "input", k + 1, lit
+        snap(380)
+    frames[0].save(path, save_all=True, append_images=frames[1:], duration=ms, loop=0, optimize=True)
+
+
 def _img_button(png: bytes):
     from d200 import Button
     return Button(image=png)
@@ -318,8 +354,9 @@ if __name__ == "__main__":
         studio_gif(os.path.join(out, f"page3-studio{sfx}.gif"))
         pomodoro_gif(os.path.join(out, f"page5-pomodoro{sfx}.gif"))
         heatmap_gif(os.path.join(out, f"page6-heatmap{sfx}.gif"))
+        game_gif(os.path.join(out, f"page7-games{sfx}.gif"))
         if lang == "ko":
-            aquarium_gif(os.path.join(out, "page7-aquarium.gif"))
+            aquarium_gif(os.path.join(out, "page8-aquarium.gif"))
         banner(out, lang)
         hero_gif(out, f"hero{sfx}.gif")
     print("written to", out)

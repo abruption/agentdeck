@@ -17,7 +17,8 @@ You don't have to turn everything on. **LLM quotas and the pomodoro work right a
    - [Machines and device detail (page 4)](#44-machines-and-device-detail-page-4)
    - [Pomodoro (page 5)](#45-pomodoro-page-5)
    - [Korean stock heatmap (page 6)](#46-korean-stock-heatmap-page-6)
-   - [Aquarium screensaver (page 7)](#47-aquarium-screensaver-page-7)
+   - [Games (page 7)](#47-games-page-7)
+   - [Aquarium screensaver (page 8)](#48-aquarium-screensaver-page-8)
 5. [Full config reference](#5-full-config-reference)
 6. [Troubleshooting](#6-troubleshooting)
 7. [Uninstall](#7-uninstall)
@@ -266,9 +267,24 @@ Korean stocks coloured by daily change: **red is up, blue is down** (the Korean 
 - To enable: `"market": {"enabled": true, "portfolio": [...], "sectors": [...]}` in `config.json`
 - ⚠️ Uses **undocumented Naver Finance endpoints**. For reference only, not investment advice.
 
-### 4.7 Aquarium screensaver (page 7)
+### 4.7 Games (page 7)
 
-<img src="images/page7-aquarium.gif" width="560">
+<img src="images/page7-games.en.gif" width="560">
+
+The top ten keys become the game board. From the menu, press one of the **four left keys** for whack-a-mole or the **four right keys** for the memory game. The wide tile is the scoreboard, and best scores are saved.
+
+| Game | How to play |
+|---|---|
+| 🔨 **Whack-a-mole** | 30 seconds to bop moles as they pop up. +1 per mole, **golden mole +3**, **bomb −3** if you hit it. It speeds up and starts sending two at a time |
+| 🧠 **Memory** | Keys light up in order; press them back in the same order. Each round adds one more, and a wrong key ends the game, marking it with ✕ and the right one with ! |
+
+- Keys react **the moment you press**, not on release.
+- After a game, press the board to play again or the **middle button** for the menu. The middle button also quits a game in progress.
+- The screensaver stays off while you play.
+
+### 4.8 Aquarium screensaver (page 8)
+
+<img src="images/page8-aquarium.gif" width="560">
 
 The whole deck (13 keys plus the wide tile) becomes **one screen** showing a pixel-art aquarium. Fish swim across key borders, seaweed sways and bubbles rise. **Pufferfish** sometimes puff up with spikes, **jellyfish** pulse and drift, and **crabs** scuttle sideways on the sand and pick up food that sinks to the bottom. A **turtle** cruises slowly, and an **octopus** crawls on the sand, now and then shooting upward with a puff of ink and changing colour. A **shark** patrols and now and then dashes, and nearby fish scatter.
 
@@ -277,7 +293,7 @@ The whole deck (13 keys plus the wide tile) becomes **one screen** showing a pix
 | **Tap** any key | Food drops there and the fish rush over |
 | **Hold** any key | Back to the page you were on |
 
-- It starts as soon as you reach page 7, and on its own after **10 idle minutes**. Change that with `"screensaver_min"` in `config.json`; `0` turns the auto start off.
+- It starts as soon as you reach page 8, and on its own after **10 idle minutes**. Change that with `"screensaver_min"` in `config.json`; `0` turns the auto start off.
 - An **agent alert or a finished pomodoro** pulls you straight out to the right page.
 - Redraws 5 times a second; each frame is about 11 KB, so it's light on the device.
 
