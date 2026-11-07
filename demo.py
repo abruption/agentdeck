@@ -136,7 +136,7 @@ def heatmap_gif(path: str) -> None:
 def aquarium_gif(path: str) -> None:
     from aquarium import Aquarium
 
-    aq, frames = Aquarium(seed=7), []
+    aq, frames = Aquarium(14, seed=7), []
     for i in range(36):
         aq.step(0.2)
         if i == 12:

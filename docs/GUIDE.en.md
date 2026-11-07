@@ -289,6 +289,7 @@ Everything lives in `config.json`. **Anything you leave out is turned off.** Res
 {
   "ui_lang": "en",              // on-device language: "en" or "ko"
   "screensaver_min": 10,        // idle minutes before the aquarium screensaver (0 = off)
+  "aquarium_fish": 14,          // number of fish in the aquarium
   "agent_source": "hooks",      // agent view: "hooks" or "herdr"
   "hooks": {
     "hosts": [null, "studio"]   // where to read hook state (null = this Mac)

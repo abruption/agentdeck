@@ -74,7 +74,7 @@ class Particle:
 
 
 class Aquarium:
-    def __init__(self, n_fish: int = 6, seed: int | None = None) -> None:
+    def __init__(self, n_fish: int = 14, seed: int | None = None) -> None:
         rnd = random.Random(seed)
         self.rnd = rnd
         self.t = 0.0

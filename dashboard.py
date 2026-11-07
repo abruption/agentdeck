@@ -119,7 +119,7 @@ class Dashboard:
         self.zoomed_pane: str | None = None  # 대시보드가 확대해 둔 총괄 pane
         self.pomo = Pomodoro.load()
         self.market_view = 0  # market.VIEWS 순서
-        self.aquarium = Aquarium()
+        self.aquarium = Aquarium(int(CFG.get("aquarium_fish", 14)))  # 물고기 수 (config)
         self.aqua_thread: threading.Thread | None = None
         self.aqua_entered = 0.0
         self.saver_from: int | None = None  # 화면보호기로 들어오기 전 페이지 (None 이면 직접 들어옴)

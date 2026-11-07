@@ -289,6 +289,7 @@ python3 scripts/install-hooks.py --codex   # Codex도 함께 (기존 notify 설�
 {
   "ui_lang": "ko",              // 화면 언어: "ko" 또는 "en"
   "screensaver_min": 10,        // 이 시간(분) 동안 입력이 없으면 어항 화면보호기 (0 = 끔)
+  "aquarium_fish": 14,          // 어항 물고기 수
   "agent_source": "hooks",      // 에이전트 현황 방식: "hooks" 또는 "herdr"
   "hooks": {
     "hosts": [null, "studio"]   // 훅 상태를 읽을 컴퓨터 (null = 이 맥)
