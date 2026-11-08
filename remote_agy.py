@@ -1,7 +1,7 @@
 """Fetch Antigravity quota through its official read-only CLI over SSH.
 
 No credential files or private endpoints are accessed by agentdeck. See
-docs/ANTIGRAVITY.md for the screenshot-derived payload contract and validation limits.
+docs/ANTIGRAVITY.md for the payload contract and live validation limits.
 """
 
 from __future__ import annotations
@@ -46,7 +46,7 @@ class Bucket:
 
 
 def parse_quota(payload: object) -> list[Bucket] | None:
-    """Parse screenshot-observed quota fields, failing closed on drift.
+    """Parse CLI quota fields, failing closed on drift.
 
     Require SUCCESS and command.data.groups; agent metadata is ignored.
     Never reinterpret response text or token-count `usage` as quota.

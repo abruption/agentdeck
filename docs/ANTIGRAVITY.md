@@ -6,9 +6,10 @@
 `status: SUCCESS`, `command.data.groups[].name`, `remaining_fraction`, `reset_time` 구조를
 반영했습니다. 이미지에는 동일 명령과 성공 상태가 보이며, 버전과 종료 코드는
 보이지 않습니다. 버전은 별도 실행으로 확인했습니다.
-Mac에서 agy 1.5.3은 확인했지만 자동 실행 두 번은 모두 exit 1이었습니다.
-첫 실행은 stdout이 비었고 후속 실행은 JSON 파싱이 가능했으나 실패 원인은
-미확정입니다. 스크린샷 구조 증거와 자동 실행 성공 검증은 다릅니다.
+2026-11-08 로컬 Mac에서 agy 1.5.3의 비대화형 명령이 exit 0으로 성공했고,
+실제 응답을 현재 파서로 처리했습니다. 수집기의 원격 Python 스크립트도
+로컬 실행에서 exit 0과 파싱 성공을 확인했습니다. 이전 exit 1의 원인은
+미확정이며, SSH 전송과 실제 장치 검증은 아직 수행하지 않았습니다.
 fixture의 모든 값은 합성이며 사용자 출력·이미지는 저장하거나 게시하지 않습니다.
 
 ## Interface and requirements
@@ -37,7 +38,7 @@ The [/usage reference](https://antigravity.google/docs/cli/commands/usage/)
 describes model quotas; the [headless reference](https://antigravity.google/docs/cli/headless/)
 also describes ordinary agent token-count `usage`, which is **not** quota.
 
-## Screenshot-derived parser contract — end-to-end validation pending
+## Parser contract — live local validation passed, SSH pending
 
 The user-provided success screenshot shows root `status: "SUCCESS"` and
 `command.data.groups`, alongside `command.name` and `command.data.description`,
@@ -45,7 +46,9 @@ with group `name` / `description` / `buckets` and bucket `id` / `name` / `window
 `remaining_fraction` / `reset_time`. This replaces the earlier camelCase hypothesis.
 The screenshot directly shows `agy -p /usage --output-format json` and SUCCESS.
 It does not show a CLI version or exit code; version 1.5.3 was confirmed separately.
-This is field-structure evidence, not a successful automated collector run.
+The screenshot provided the initial field-structure evidence. Subsequent local
+automated checks with agy 1.5.3 confirmed this envelope and successful parsing;
+they do not validate SSH transport or the dashboard.
 `tests/fixtures/agy_quota.json` uses those field names with entirely synthetic
 values; the screenshot and personal response were not committed.
 
@@ -85,14 +88,32 @@ Before considering the draft ready:
 network, SSH, CLI authentication, or hardware. It exercises parsing and both
 subprocess layers (the remote script is executed with a mocked `subprocess.run`).
 
-Automated macOS checks confirmed agy 1.5.3. The first /usage invocation exited 1
-with empty stdout; one subsequent invocation also exited 1 but its stdout parsed
-as JSON. JSON parseability does not mean success. The cause is undetermined;
-workspace trust, permissions and authentication are not established diagnoses.
-Nonzero exits are rejected even if stdout contains valid JSON. The separate
-success screenshot supplies the schema evidence described above.
-`python -B demo.py <output-directory>` was attempted but stopped at
+Live local verification on 2026-11-08 with agy 1.5.3 passed:
+
+- Direct `agy -p /usage --output-format json` with closed stdin and captured
+  output exited 0, returned JSON with SUCCESS and `command.data.groups`, and
+  produced a usable result through `parse_quota`.
+- The exact `REMOTE` script executed locally under Python also exited 0 with
+  no stderr and a usable parsed result. This exercises the version gate, PATH
+  setup, closed CLI stdin, and CLI invocation used by the remote collector.
+- Both `5h` and `weekly` windows were present. Parsed fractions were within
+  [0, 1], and parsed reset values were timezone-aware or absent.
+- Personal CLI output stayed in memory; no raw response, group names, quota
+  values or reset times were saved or published.
+
+Earlier automated Mac attempts exited 1 (one had empty stdout; another had
+JSON-parseable stdout). Their cause remains undetermined. The local successes
+above do not explain those earlier failures or establish SSH reliability.
+Nonzero exits remain failures even if stdout contains valid JSON.
+
+Neither the original checkout nor the verification worktree has a private
+`config.json`, so no authorized configured SSH target was available for a live
+transport check. No host was inferred from example configuration or SSH config.
+The exact script was tested locally, not over SSH.
+
+The earlier `python -B demo.py <output-directory>` attempt stopped at
 `ModuleNotFoundError: No module named 'hid'`; no dependency was installed.
-Full demo rendering, successful automated quota retrieval, end-to-end macOS
-dashboard behavior, actual SSH execution and D200 hardware remain unverified. The repository did not have a GitHub Actions workflow at the base
-commit; local test success is not CI success.
+Full demo rendering, end-to-end SSH/dashboard behavior and D200 hardware remain
+unverified. The repository did not have a GitHub Actions workflow at the base
+commit; local test success is not CI success. Keep this PR draft pending live
+SSH/dashboard validation.
