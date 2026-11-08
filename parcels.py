@@ -26,6 +26,15 @@ from PIL import Image, ImageDraw
 
 from clock import _Draw, _kr
 
+try:  # python.org 파이썬은 인증서 묶음이 없어서 certifi 를 쓴다 (market.py 와 같은 방식)
+    import ssl
+
+    import certifi
+
+    _CTX = ssl.create_default_context(cafile=certifi.where())
+except Exception:
+    _CTX = None
+
 DATA = Path.home() / ".cache" / "d200" / "parcels.json"
 POLL_SEC = 30 * 60
 SIZE = 196
@@ -151,7 +160,7 @@ def fetch(parcels: list[Parcel]) -> None:
         url = API_URL.format(nos=",".join(p.tracking for p in chunk))
         try:
             req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (agentdeck)"})
-            data = json.loads(urllib.request.urlopen(req, timeout=20).read())
+            data = json.loads(urllib.request.urlopen(req, timeout=20, context=_CTX).read())
         except Exception as e:
             print(f"parcels: 조회 실패 {e}", flush=True)
             continue
