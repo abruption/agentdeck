@@ -9,7 +9,8 @@
 2026-11-08 로컬 Mac에서 agy 1.5.3의 비대화형 명령이 exit 0으로 성공했고,
 실제 응답을 현재 파서로 처리했습니다. 수집기의 원격 Python 스크립트도
 로컬 실행에서 exit 0과 파싱 성공을 확인했습니다. 이전 exit 1의 원인은
-미확정이며, SSH 전송과 실제 장치 검증은 아직 수행하지 않았습니다.
+미확정입니다. 사용자가 지정한 기존 SSH 대상에서는 수집 시도가 90초 제한에
+도달했으며, SSH 성공과 실제 장치 검증은 대기 중입니다.
 fixture의 모든 값은 합성이며 사용자 출력·이미지는 저장하거나 게시하지 않습니다.
 
 ## Interface and requirements
@@ -107,9 +108,15 @@ above do not explain those earlier failures or establish SSH reliability.
 Nonzero exits remain failures even if stdout contains valid JSON.
 
 Neither the original checkout nor the verification worktree has a private
-`config.json`, so no authorized configured SSH target was available for a live
-transport check. No host was inferred from example configuration or SSH config.
-The exact script was tested locally, not over SSH.
+`config.json`. After the user supplied an existing SSH target, the exact SSH
+collector invocation was attempted with that target and reached its 90-second
+total timeout. A separate 20-second diagnostic, running only a remote Python
+start marker and CLI version check (no /usage retry), also timed out without
+receiving the Python start marker. This does not establish whether the remote
+CLI ran or identify the SSH failure cause. No hostname, credentials or personal
+output is published, and no configuration or authentication was changed.
+Successful SSH collection remains unverified; the local REMOTE-script success
+above must not be interpreted as SSH success.
 
 The earlier `python -B demo.py <output-directory>` attempt stopped at
 `ModuleNotFoundError: No module named 'hid'`; no dependency was installed.
