@@ -182,7 +182,7 @@ flowchart LR
 
 > ⚠️ Codex 한도 조회는 **공식 문서가 없는 내부 API**를 씁니다. 언제든 바뀌거나 막힐 수 있으니, 각 서비스 약관을 확인하고 본인 책임 아래 사용하세요.
 
-agy는 SSH로 공식 CLI의 `agy -p /usage --output-format json`을 호출합니다(CLI 1.1.11 이상). **agy 1.5.3에서 로컬 CLI와 실제 SSH 수집·응답 파싱을 확인했습니다. 대시보드·실제 장치 검증은 대기 중입니다.** [요구사항과 검증 범위](docs/ANTIGRAVITY.md)를 확인하세요.
+agy는 SSH로 공식 CLI의 `agy -p /usage --output-format json`을 호출합니다(CLI 1.1.11 이상). **agy 1.5.3에서 로컬 CLI와 실제 SSH 수집·응답 파싱을 확인했습니다. 대시보드 연동과 한·영 화면 렌더링도 확인했습니다. D200 실물 검증은 기기 부재로 수행하지 못했습니다.** [요구사항과 검증 범위](docs/ANTIGRAVITY.md)를 확인하세요.
 
 ## 🗺 로드맵
 

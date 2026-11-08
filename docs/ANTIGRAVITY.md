@@ -1,4 +1,4 @@
-# Antigravity quota via CLI (Draft / 검증 대기)
+# Antigravity quota via CLI
 
 한국어: 기존 `agy.enabled` / `agy.host` 설정과 SSH·원격 Python 구조를 유지하고,
 공식 CLI의 읽기 전용 JSON 명령으로 한도를 조회합니다. 토큰 파일을 직접 읽거나
@@ -11,7 +11,7 @@
 로컬 실행에서 exit 0과 파싱 성공을 확인했습니다. 이전 exit 1의 원인은
 미확정입니다. SSH에서는 Tailscale 추가 인증 요청을 확인했고, 사용자 인증 후
 직접 SSH 명령과 기본 제한 시간의 실제 `agy_quota()` 호출이 모두 성공했습니다.
-대시보드·실제 장치 검증은 대기 중입니다.
+대시보드 연동과 한·영 화면 렌더링도 확인했습니다. D200 실물 검증은 기기 부재로 불가합니다.
 fixture의 모든 값은 합성이며 사용자 출력·이미지는 저장하거나 게시하지 않습니다.
 
 ## Interface and requirements
@@ -54,7 +54,7 @@ It does not show a CLI version or exit code; version 1.5.3 was confirmed separat
 The screenshot provided the initial field-structure evidence. Subsequent local
 automated checks with agy 1.5.3 confirmed this envelope and successful parsing;
 separate SSH checks described below also passed. Dashboard rendering remains
-unverified.
+validated without hardware as described below.
 `tests/fixtures/agy_quota.json` uses those field names with entirely synthetic
 values; the screenshot and personal response were not committed.
 
@@ -77,7 +77,7 @@ Model-group names and ordering are retained in the existing `list[Bucket] | None
 contract. The unchanged dashboard currently uses the last bucket for each window
 across groups; this draft does not add model selection or change that UI policy.
 
-Before considering the draft ready:
+Verification procedure:
 
 1. On an already authenticated supported installation, privately check
    `agy --version` and `agy -p /usage --output-format json`. Use the same
@@ -85,14 +85,19 @@ Before considering the draft ready:
 2. Compare field names, envelopes, fraction units, unavailable/disabled values,
    model groups, both windows, and reset timezone semantics. Update the parser and
    synthetic fixtures to the observed contract and record the CLI version only.
-3. Verify actual SSH success/failure and dashboard display; test a real D200
-   separately. Do not treat mocked subprocess tests as live CLI/hardware evidence.
+3. Verify actual SSH success/failure and dashboard rendering without hardware.
+   A real D200 check is separate and was unavailable for this PR. Do not treat
+   mocked subprocess tests or PNG rendering as hardware evidence.
 
 ## Local checks
 
-`python -B -m unittest discover -s tests -v` runs without third-party packages,
-network, SSH, CLI authentication, or hardware. It exercises parsing and both
-subprocess layers (the remote script is executed with a mocked `subprocess.run`).
+`python -B -m unittest discover -s tests -v` runs the 13 parser/transport tests
+without third-party packages, network, SSH, CLI authentication, or hardware.
+The remote script is executed with a mocked `subprocess.run`.
+Three additional synthetic dashboard integration tests run when `requirements.txt`
+is installed; otherwise they are explicitly skipped. These check the existing
+last-group-per-window policy, exhausted zero versus unavailable placeholders,
+and the actual `collect_llms` / page data path without network or a device.
 
 Live local verification on 2026-11-08 with agy 1.5.3 passed:
 
@@ -133,8 +138,29 @@ future SSH failure will behave. No authentication URL, hostname, account detail,
 quota value or reset timestamp is published. The user completed authentication;
 Agentdeck code did not change credentials, configuration or access policies.
 
-The earlier `python -B demo.py <output-directory>` attempt stopped at
-`ModuleNotFoundError: No module named 'hid'`; no dependency was installed.
-Full demo rendering, dashboard integration and D200 hardware remain unverified. The repository did not have a GitHub Actions workflow at the base
-commit; local test success is not CI success. Keep this PR draft pending
-dashboard validation; hardware verification remains separate.
+## Device-free dashboard and rendering validation
+
+On 2026-11-08, the project requirements were installed only into an isolated
+temporary virtual environment for this verification. All 16 tests passed,
+including the three dashboard integration checks.
+
+- Actual SSH quota collection was passed through `dashboard.collect_llms()` to
+  summary and quota-grid page rendering in both Korean and English. Other LLM
+  collectors were mocked to avoid unrelated account access. All 40 generated
+  icons decoded as 196x196 PNGs. Personal quota images stayed in memory and
+  were neither saved nor published.
+- Full `demo.py` execution completed with synthetic data in both languages.
+  All 23 generated PNG/GIF files decoded successfully (255 frames total).
+  The output directory included a copy of the existing `banner-bg.jpg` asset,
+  which the demo's banner renderer requires.
+- The Korean/English summary and quota-grid mockups were visually inspected:
+  AGY percentages, both quota windows, gauges and reset labels rendered without
+  clipping. The other demo frames were decoded, not individually visually reviewed.
+- `git diff --check` and Python AST checks passed.
+
+No physical D200 was available, so USB communication, physical display output,
+button input and device brightness were not tested. Software rendering and
+integration checks do not establish those hardware behaviors. Per the user's
+request, this unavailable hardware check is documented rather than blocking
+Ready for review. No GitHub Actions workflow exists at the base commit; local
+verification is not CI success.
