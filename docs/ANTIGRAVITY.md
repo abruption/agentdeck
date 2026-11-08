@@ -9,8 +9,9 @@
 2026-11-08 로컬 Mac에서 agy 1.5.3의 비대화형 명령이 exit 0으로 성공했고,
 실제 응답을 현재 파서로 처리했습니다. 수집기의 원격 Python 스크립트도
 로컬 실행에서 exit 0과 파싱 성공을 확인했습니다. 이전 exit 1의 원인은
-미확정입니다. 사용자가 지정한 기존 SSH 대상에서는 수집 시도가 90초 제한에
-도달했으며, SSH 성공과 실제 장치 검증은 대기 중입니다.
+미확정입니다. SSH에서는 Tailscale 추가 인증 요청을 확인했고, 사용자 인증 후
+직접 SSH 명령과 기본 제한 시간의 실제 `agy_quota()` 호출이 모두 성공했습니다.
+대시보드·실제 장치 검증은 대기 중입니다.
 fixture의 모든 값은 합성이며 사용자 출력·이미지는 저장하거나 게시하지 않습니다.
 
 ## Interface and requirements
@@ -18,6 +19,9 @@ fixture의 모든 값은 합성이며 사용자 출력·이미지는 저장하�
 - Keep `agy.enabled` and `agy.host` in the ignored `config.json` as before.
 - The existing remote host needs Python 3, an authenticated Antigravity CLI,
   and working noninteractive SSH. agentdeck installs nothing and does not log in.
+  Tailscale SSH may require an additional browser check even with BatchMode;
+  complete that check separately before background collection. Agentdeck does
+  not bypass it or change access policies.
 - The remote process prepends `~/.local/bin` and `/opt/homebrew/bin` to PATH,
   preserving the previous installation locations and inherited PATH.
 - It first runs `agy --version` (10 seconds), then, only for a recognized stable
@@ -39,7 +43,7 @@ The [/usage reference](https://antigravity.google/docs/cli/commands/usage/)
 describes model quotas; the [headless reference](https://antigravity.google/docs/cli/headless/)
 also describes ordinary agent token-count `usage`, which is **not** quota.
 
-## Parser contract — live local validation passed, SSH pending
+## Parser contract — live local and SSH validation passed
 
 The user-provided success screenshot shows root `status: "SUCCESS"` and
 `command.data.groups`, alongside `command.name` and `command.data.description`,
@@ -49,7 +53,8 @@ The screenshot directly shows `agy -p /usage --output-format json` and SUCCESS.
 It does not show a CLI version or exit code; version 1.5.3 was confirmed separately.
 The screenshot provided the initial field-structure evidence. Subsequent local
 automated checks with agy 1.5.3 confirmed this envelope and successful parsing;
-they do not validate SSH transport or the dashboard.
+separate SSH checks described below also passed. Dashboard rendering remains
+unverified.
 `tests/fixtures/agy_quota.json` uses those field names with entirely synthetic
 values; the screenshot and personal response were not committed.
 
@@ -107,20 +112,29 @@ JSON-parseable stdout). Their cause remains undetermined. The local successes
 above do not explain those earlier failures or establish SSH reliability.
 Nonzero exits remain failures even if stdout contains valid JSON.
 
-Neither the original checkout nor the verification worktree has a private
-`config.json`. After the user supplied an existing SSH target, the exact SSH
-collector invocation was attempted with that target and reached its 90-second
-total timeout. A separate 20-second diagnostic, running only a remote Python
-start marker and CLI version check (no /usage retry), also timed out without
-receiving the Python start marker. This does not establish whether the remote
-CLI ran or identify the SSH failure cause. No hostname, credentials or personal
-output is published, and no configuration or authentication was changed.
-Successful SSH collection remains unverified; the local REMOTE-script success
-above must not be interpreted as SSH success.
+Live SSH verification on 2026-11-08 used an existing target explicitly supplied
+by the user. No private `config.json` was created or modified.
+
+- Initial collector and diagnostic calls timed out before receiving the remote
+  Python start marker. A longer retry also reached its 180-second total limit.
+- Running SSH directly from the shell exposed a Tailscale SSH additional-check
+  request. After the user completed that browser authentication, direct SSH
+  printed the connection marker and confirmed remote agy 1.5.3.
+- Direct shell SSH execution of /usage exited 0. Its response parsed successfully
+  with both 5h and weekly windows and aware-or-absent parsed reset values. The
+  local parsing process also exited 0. Raw output was not displayed or saved.
+- The actual `agy_quota()` function then returned usable buckets in 6 seconds
+  using its unchanged 5-second connection, 60-second CLI and 90-second total
+  limits. The host override existed only in that verification process.
+
+These checks establish successful live SSH collection after the Tailscale check.
+They do not explain the earlier local Mac CLI failures or establish how every
+future SSH failure will behave. No authentication URL, hostname, account detail,
+quota value or reset timestamp is published. The user completed authentication;
+Agentdeck code did not change credentials, configuration or access policies.
 
 The earlier `python -B demo.py <output-directory>` attempt stopped at
 `ModuleNotFoundError: No module named 'hid'`; no dependency was installed.
-Full demo rendering, end-to-end SSH/dashboard behavior and D200 hardware remain
-unverified. The repository did not have a GitHub Actions workflow at the base
-commit; local test success is not CI success. Keep this PR draft pending live
-SSH/dashboard validation.
+Full demo rendering, dashboard integration and D200 hardware remain unverified. The repository did not have a GitHub Actions workflow at the base
+commit; local test success is not CI success. Keep this PR draft pending
+dashboard validation; hardware verification remains separate.
