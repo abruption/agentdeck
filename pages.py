@@ -81,7 +81,7 @@ def nav(page: int, total: int, brightness: int, middle: tuple[str, str] | None =
         }
     return {
         10: Button(header="이전", title="◀", sub="", bg=NAV_BG, accent=DIM),
-        11: Button(header=f"{page}/{total} 페이지", title="갱신", sub=f"길게: 밝기 {brightness}", bg=NAV_BG, accent=DIM),
+        11: Button(header=f"{page}/{total} 페이지", title="홈", sub=f"길게: 밝기 {brightness}", bg=NAV_BG, accent=DIM),
         12: Button(header="다음", title="▶", sub="", bg=NAV_BG, accent=DIM),
     }
 

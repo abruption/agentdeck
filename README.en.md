@@ -127,10 +127,10 @@ The top ten keys become a game board: **whack-a-mole** (30 s, golden +3, bomb �
 <td><img src="docs/images/page8-aquarium.gif" alt="Aquarium"></td>
 <td valign="top">
 
-### 8 · Aquarium screensaver
-The whole deck becomes **one aquarium**. Fish, pufferfish, jellyfish, crabs, a turtle, an octopus and a shark roam across the keys, and pressing a key drops **food** there. It starts by itself when the deck sits idle and steps aside when an alert comes in.
+### 8 · Chill screensavers
+Four whole-deck scenes with matching ambience: **aquarium, fireplace, rainy window and sunset beach**. Fish, pufferfish, jellyfish, crabs, a turtle, an octopus and a shark roam the aquarium; pressing a key drops food, throws a log, calls lightning or sends a big wave. It starts by itself when the deck sits idle and steps aside when an alert comes in.
 
-<sub>→ [Guide: aquarium](docs/GUIDE.en.md#48-aquarium-screensaver-page-8)</sub>
+<sub>→ [Guide: chill screensavers](docs/GUIDE.en.md#48-chill-screensavers-aquarium--fire--rain--beach)</sub>
 
 </td>
 </tr>
@@ -159,7 +159,8 @@ New to this? Follow the **[guide](docs/GUIDE.en.md)**, from setup through each f
 | Button | Action |
 |---|---|
 | ◀ / ▶ | Change page |
-| Middle: tap / hold | Refresh now / cycle brightness |
+| Middle: tap / hold | **Home** (shortcuts + what's new) and refresh / cycle brightness |
+| Hold the wide tile 2 s | **Update and restart** when a new version is available |
 | Blinking tile | Jump to that agent and acknowledge |
 | 🔴 Delete / purge | **Hold once to arm (red), then hold again within 10 s** |
 

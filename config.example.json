@@ -64,5 +64,8 @@
     ]
   },
   "screensaver_min": 10,
-  "aquarium_fish": 14
+  "screensaver_scene": "aqua",
+  "aquarium_fish": 14,
+  "sound": {"enabled": false, "volume": 0.6},
+  "parcels": {"enabled": false}
 }

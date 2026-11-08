@@ -19,6 +19,7 @@ from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
 
 from clock import _Draw, _kr
+from sfx import play
 
 BOARD = 10
 SIZE = 196
@@ -866,6 +867,7 @@ class Games:
             now = time.time()
             if self.mode == "menu":
                 if idx < len(GAMES):
+                    play("tap")
                     self.start(GAMES[idx])
                 return
             if self.phase == "over":
@@ -888,14 +890,18 @@ class Games:
                 if kind == "mole":
                     self.score += 1
                     self.holes[idx] = ("hit", now + 0.35)
+                    play("hit", 0)
                 elif kind == "gold":
                     self.score += 3
                     self.holes[idx] = ("hit", now + 0.35)
+                    play("coin", 0)
                 elif kind == "bomb":
                     self.score = max(0, self.score - 3)
                     self.holes[idx] = ("boom", now + 0.5)
+                    play("boom", 0)
                 elif kind == "empty":
                     self.holes[idx] = ("miss", now + 0.25)
+                    play("tap")
             elif self.mode == "pairs":
                 self._press_card(idx, now)
             elif self.mode == "slot":
@@ -903,6 +909,7 @@ class Games:
             elif self.mode == "simon" and self.phase == "input":
                 self.lit, self.lit_until = idx, now + 0.25
                 if idx == self.seq[self.pos]:
+                    play(f"note{idx}", 0)
                     self.pos += 1
                     if self.pos == len(self.seq):  # 한 판 통과
                         self.score = len(self.seq)
@@ -910,6 +917,7 @@ class Games:
                 else:
                     self.lit = None
                     self.wrong = idx
+                    play("bad")
                     self._finish()
 
     def _press_card(self, idx: int, now: float) -> None:
@@ -920,13 +928,16 @@ class Games:
         if idx in self.open:
             return
         self.open.append(idx)
+        play("flip", 0)
         if len(self.open) == 2:
             self.score += 1  # 시도 횟수
             a, b = self.open
             if self.cards[a] == self.cards[b]:
                 self.matched |= {a, b}
                 self.open = []
+                play("coin", 0)
                 if len(self.matched) == BOARD:
+                    play("win", 0)
                     self._finish()
             else:
                 self.flip_back = now + 0.9
@@ -937,6 +948,7 @@ class Games:
                 return
             self.coins -= 1
             self.score += 1  # 돌린 횟수
+            play("tap")
             self.spinning = [True, True, True]
             self.spin_next, self.spin_auto, self.win = now, now + 6, 0
             self._save_coins()
@@ -944,6 +956,7 @@ class Games:
             k = (SLOT_STOPS.index(idx) if idx in SLOT_STOPS else SLOT_REELS.index(idx))
             if self.spinning[k]:
                 self.spinning[k] = False
+                play("hit", 0)
                 self._after_stop(now)
 
     def _after_stop(self, now: float) -> None:
@@ -959,6 +972,7 @@ class Games:
         if self.win:
             self.coins += self.win
             self.win_until = now + (2.4 if self.win >= 30 else 1.4)
+            play("jackpot" if self.win >= 30 else ("win" if self.win > 2 else "coin"), 0)
         self._save_coins()
         if self.coins <= 0:
             self._finish()
@@ -982,6 +996,7 @@ class Games:
         if self.phase != "play":
             return
         if idx == BJ_HIT:
+            play("card", 0)
             self.player.append(self._draw())
             if hand_value(self.player)[0] >= 21:
                 self._dealer_turn(now)
@@ -1001,6 +1016,7 @@ class Games:
         self.bet_now = bet
         self.player = [self._draw(), self._draw()]
         self.dealer = [self._draw(), self._draw()]
+        play("card", 0)
         self.hole, self.result, self.phase = True, "", "play"
         self._save_coins()
         if hand_value(self.player)[0] == 21 or hand_value(self.dealer)[0] == 21:  # 블랙잭이면 바로 결판
@@ -1031,6 +1047,7 @@ class Games:
         self.coins += pay
         self.win = pay - self.bet_now
         self.phase = "done"
+        play({"bj": "jackpot", "win": "win", "lose": "lose"}.get(self.result, "tap"), 0)
         if self.result in ("win", "bj"):
             self.win_until = now + 1.6
         self._save_coins()
@@ -1042,7 +1059,9 @@ class Games:
         if self.phase == "play":
             if 5 <= idx < BOARD:
                 self.held[idx - 5] = not self.held[idx - 5]
+                play("tap")
             elif idx >= 13:
+                play("card", 0)
                 self._poker_draw(now)
             return
         if self.phase == "done":
@@ -1066,6 +1085,7 @@ class Games:
         self.coins -= self.bet_now
         self.hand = [self.shoe.pop() for _ in range(5)]
         self.opp = [self.shoe.pop() for _ in range(5)]
+        play("card", 0)
         self.held, self.phase, self.opp_swapped, self.poker_cmp = [False] * 5, "play", 0, 0
         self._save_coins()
 
@@ -1079,6 +1099,7 @@ class Games:
     def _poker_showdown(self, now: float) -> None:
         me, op = poker_rank(self.hand), poker_rank(self.opp)
         self.poker_cmp = (me > op) - (me < op)
+        mult = 1
         if self.poker_cmp > 0:
             mult = POKER_BONUS.get(me[0], 1)
             pay = self.bet_now * (1 + mult)
@@ -1090,6 +1111,7 @@ class Games:
         self.coins += pay
         self.win = pay - self.bet_now
         self.phase = "done"
+        play(("jackpot" if mult >= 25 else "win") if self.poker_cmp > 0 else ("tap" if self.poker_cmp == 0 else "lose"), 0)
         self._save_coins()
 
     # ---- 경마 (말 5마리, 단승 · 복승 · 삼복승) ----
@@ -1099,6 +1121,7 @@ class Games:
         if self.phase == "bet":
             if 5 <= idx < BOARD:
                 k = idx - 5
+                play("tap")
                 if k in self.race_pick:
                     self.race_pick.remove(k)
                 else:
@@ -1107,8 +1130,10 @@ class Games:
                     self.race_pick.append(k)
             elif idx == RACE_TOGGLE and len(self.race_pick) == 2:
                 self.race_exacta = not self.race_exacta
+                play("tap")
             elif idx in RACE_CHIPS:
                 self.bet = BJ_BETS[RACE_CHIPS.index(idx)]
+                play("coin")
             elif idx >= 13 and self.race_pick:
                 self._race_go(now)
         elif self.phase == "done" and now - self.over_at > 0.8:
@@ -1141,6 +1166,7 @@ class Games:
         self._save_coins()
         self.race_frames, self.race_order = race_sim(self.race_power, self.rnd)
         self.phase, self.race_start = "gate", now + 1.5  # 1.5초 출발 대기 (3·2·1)
+        play("tap")
         self.race_t, self.race_cam, self.race_cam_left = 0.0, "", 0.0
 
     def race_hit(self) -> bool:
@@ -1168,6 +1194,7 @@ class Games:
 
     def _race_settle(self, now: float) -> None:
         pay = int(self.bet_now * self.race_bet_odds()) if self.race_hit() else 0
+        play(("jackpot" if self.race_bet_odds() >= 10 else "win") if pay else "lose", 0)
         self.coins += pay
         self.win = pay - self.bet_now
         self.phase, self.over_at = "done", now
@@ -1210,6 +1237,7 @@ class Games:
                 self._next_round(now + 0.8)
 
     def _next_round(self, at: float) -> None:
+        self._shown = -1
         self.seq.append(self.rnd.randrange(BOARD))
         self.phase, self.pos, self.show_at, self.lit = "show", 0, at, None
 
@@ -1242,20 +1270,28 @@ class Games:
             elif self.mode == "race":
                 if self.phase == "gate" and now >= self.race_start:
                     self.phase, self.race_t, self.race_last = "run", 0.0, now
+                    play("bell", 0)
+                    self._gallop_at = now
                 if self.phase == "run":
                     speed = {"slow": CAM_SPEED, "hold": 0.0}.get(self.race_cam, 1.0)
                     self.race_t += (now - self.race_last) * RACE_FPS * speed
                     self.race_last = now
+                    if self.race_cam in ("", "after") and now - getattr(self, "_gallop_at", 0) > 1.6:
+                        self._gallop_at = now  # 말발굽 소리 (슬로우 모션 땐 쉰다)
+                        play("gallop", 0, 0.6)
                     f = self.race_frame(now)
                     pos = self.race_pos()
                     need = min(5, max(2, len(self.race_pick)))  # 승식에 필요한 착순까지 들어오면 슬로우 끝
                     if self.race_cam == "" and max(pos) >= CAM_START:
                         self.race_cam, self.race_cam_at = "slow", now
+                        play("whoosh", 0)
                         self.race_cam_left = max(pos) - CAM_SPAN * 0.62
                     elif self.race_cam == "slow":
                         self.race_cam_left = max(self.race_cam_left, min(max(pos) - CAM_SPAN * 0.62, 1.0 - CAM_SPAN * CAM_FINISH_AT))
                         if sorted(pos)[-need] >= 1.0:
                             self.race_cam, self.race_cam_at = "hold", now
+                            play("shutter", 0)
+                            play("cheer", 0, 0.8)
                     elif self.race_cam == "hold" and now - self.race_cam_at > 0.9:
                         self.race_cam = "after"
                     lead = max(range(5), key=lambda i: pos[i])
@@ -1270,6 +1306,7 @@ class Games:
                 if self.phase == "dealer" and now >= self.next_draw:
                     if hand_value(self.dealer)[0] < 17:  # 딜러는 16 이하면 뽑고 17 이상이면 멈춘다
                         self.dealer.append(self._draw())
+                        play("card", 0)
                         self.next_draw = now + 0.7
                     else:
                         self._settle(now)
@@ -1279,6 +1316,7 @@ class Games:
                         if on:
                             i = SLOT_SYMBOLS.index(self.reels[k])
                             self.reels[k] = SLOT_SYMBOLS[(i + 1 + k) % len(SLOT_SYMBOLS)]
+                    play("tick", 0.1, 0.5)
                     self.spin_next = now + 0.13
                     if now >= self.spin_auto:  # 너무 오래 안 누르면 자동 정지
                         self.spinning = [False, False, False]
@@ -1292,7 +1330,11 @@ class Games:
                     if k >= len(self.seq):
                         self.phase, self.lit = "input", None
                     else:
-                        self.lit = self.seq[k] if (now - self.show_at) - k * step < on else None
+                        lit = self.seq[k] if (now - self.show_at) - k * step < on else None
+                        if lit is not None and (self.lit is None or k != getattr(self, "_shown", -1)):
+                            self._shown = k
+                            play(f"note{lit}", 0)
+                        self.lit = lit
                 elif self.phase == "input" and self.lit is not None and now >= self.lit_until:
                     self.lit = None
 

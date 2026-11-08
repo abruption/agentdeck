@@ -22,7 +22,15 @@ from pages import (LLM, Limit, nav, nav_device, nav_worktrees, page_device, page
 import market
 from aquarium import Aquarium
 from games import Games
+
 from config import CFG
+import parcels
+import parcels_import
+import updater
+import intro
+from sfx import ambient, play
+from fireplace import Fireplace
+from scenes import Beach, Rain
 from mole import MOLE_HOSTS, dryrun_info, empty_trash, mole_status, refresh_dryrun, run_clean, run_purge, trash_info
 from machines import MACHINES
 from worktrees import Worktree, ask_tower, open_in_herdr, remove_worktree, worktrees
@@ -36,9 +44,13 @@ REFRESH_SEC = 30
 BRIGHTNESS_STEPS = [20, 50, 80, 100]
 LONG_PRESS = 0.8
 W5, WEEK = timedelta(hours=5), timedelta(days=7)
-PAGES = 8
+HOME_PAGE = 0  # 홈: 페이지 바로가기 + 업데이트 내용 (켜질 때 인트로 뒤, 가운데 버튼 짧게)
+CLOCK_PAGES = (HOME_PAGE, 1, 2, 4)  # 넓은 칸이 시계인 페이지 (업데이트 단추 역할도 함)
+PARCELS_ON = bool((CFG.get("parcels") or {}).get("enabled"))  # 택배(해외 직구) 도착 예상 페이지
+PAGES = 9 if PARCELS_ON else 8
 GAME_PAGE = 7  # 게임: 두더지 잡기 · 순서 기억
-AQUA_PAGE = 8  # 어항 (넘김 순서 마지막, 화면보호기로도 사용)
+PARCEL_PAGE = 8 if PARCELS_ON else -1  # 택배 (게임 다음)
+AQUA_PAGE = PAGES  # 어항 (넘김 순서 마지막, 화면보호기로도 사용)
 GAME_TICK = 0.05
 AQUA_FPS = 5
 WT_PAGE = 16  # 워크트리: 작업 현황 넓은 칸에서 들어가는 하위 페이지 (넘김 순서 밖)
@@ -123,9 +135,27 @@ class Dashboard:
         self.pomo = Pomodoro.load()
         self.market_view = 0  # market.VIEWS 순서
         self.aquarium = Aquarium(int(CFG.get("aquarium_fish", 14)))  # 물고기 수 (config)
+        self.fireplace = Fireplace()
+        self.rain = Rain()
+        self.beach = Beach()
+        # 멍때리기 화면: aqua(물멍) | fire(불멍). 화면보호기는 config "screensaver_scene" (aqua·fire·번갈아 alternate)
+        self.saver_cfg = CFG.get("screensaver_scene", "aqua")
+        self.scene_kind = self.saver_cfg if self.saver_cfg in ("aqua", "fire", "rain", "beach") else "aqua"
         self.aqua_thread: threading.Thread | None = None
         self.aqua_entered = 0.0
         self.games = Games()
+        self.intro_on = False  # 시작 인트로 재생 중
+        self.intro_skip = False
+        self.home_notes: list[str] = []
+        self.home_fresh = False
+        self.home_note_page = 0
+        self.home_extra: list[tuple[int, str, str, str, str]] = []
+        self.home_pick = False  # 홈에서 어항을 눌렀을 때: 물멍/불멍 고르기  # 선택 기능이 홈에 추가하는 바로가기
+        self.parcels: list = []  # 택배 목록 (parcels.Parcel)
+        self.parcels_at = 0.0
+        self.parcels_import_at = time.time()  # 켜자마자 가져오지는 않음 (3시간 뒤부터)
+        self.parcel_sel: int | None = None  # 고른 택배 (넓은 칸에 이동 기록)
+        self.parcel_off = 0  # 9개 넘으면 넘겨 보기
         self.game_thread: threading.Thread | None = None
         self.game_handled: set[int] = set()  # 누를 때 이미 처리한 칸 (뗄 때 무시)
         self.saver_from: int | None = None  # 화면보호기로 들어오기 전 페이지 (None 이면 직접 들어옴)
@@ -154,6 +184,14 @@ class Dashboard:
             return
         if ev.action == "press":
             self.pressed_at[ev.index] = time.time()
+            if self.intro_on:  # 인트로: 아무 칸 = 건너뛰기
+                self.intro_skip = True
+                self.game_handled.add(ev.index)
+                return
+            if ev.index >= 13 and self.page in CLOCK_PAGES and updater.status()["behind"]:
+                # 새 버전: 넓은 칸을 계속 누르고 있으면 업데이트 (떼면 취소)
+                t = self.pressed_at[ev.index]
+                threading.Timer(updater.HOLD_SEC, self.update_if_held, (ev.index, t)).start()
             if self.page == GAME_PAGE and (ev.index < 10 or ev.index >= 13 or self.games.fullscreen):  # 게임은 누르는 순간 처리
                 # (화면 전체 연출 중엔 아래 줄 버튼도 게임 화면이라 페이지 넘김을 막는다)
                 self.last_input = time.time()
@@ -179,7 +217,7 @@ class Dashboard:
             if held >= LONG_PRESS:
                 self.leave_aquarium()
             else:
-                self.aquarium.feed(ev.index if ev.index < 13 else 13)
+                self.scene().feed(ev.index if ev.index < 13 else 13)
             return
         if self.page == DEV_PAGE and ev.index in (10, 12):  # 기기 상세 → 뒤로(머신) / 다음 기기
             if ev.index == 10:
@@ -196,7 +234,7 @@ class Dashboard:
             self.page = 3 if ev.index == 10 else 4
             self.render()
         elif ev.index == 10:
-            self.page = PAGES if self.page == 1 else self.page - 1
+            self.page = PAGES if self.page in (HOME_PAGE, 1) else self.page - 1
             if self.page == AQUA_PAGE:
                 self.enter_aquarium(saver=False)
                 return
@@ -224,6 +262,36 @@ class Dashboard:
         elif self.page == 1 and ev.index == 8 and (self.studio.attention or self.studio.done):  # 요약 스튜디오 칸: 알림 있는 곳으로
             alerts = [w for w in self.studio.workspaces if w.attention] or [w for w in self.studio.workspaces if w.done]
             self.focus_ws(alerts[0])
+        elif self.page == HOME_PAGE and ev.index < 10:  # 홈 바로가기
+            items = self.home_items()
+            if self.home_pick:  # 어항 고르기 화면: 1번 칸 = 물멍, 3번 칸 = 불멍, 그 밖 = 돌아가기
+                self.home_pick = False
+                pick = {0: "aqua", 1: "fire", 3: "rain", 4: "beach"}.get(ev.index % 5)
+                if pick:
+                    self.go_page(AQUA_PAGE, kind=pick)
+                else:
+                    self.render()
+            elif ev.index < len(items):
+                pg = items[ev.index][0]
+                if pg == AQUA_PAGE:
+                    self.home_pick = True
+                    self.render()
+                else:
+                    self.go_page(pg)
+        elif self.page == HOME_PAGE and ev.index >= 13:  # 홈 넓은 칸 짧게: 다음 업데이트 내용
+            if held < updater.HOLD_SEC:
+                self.home_note_page += 1
+                self.render()
+        elif self.page in CLOCK_PAGES and ev.index >= 13:  # 시계 넓은 칸 짧게: 업데이트 안내
+            st = updater.status()
+            if st["behind"] and held < updater.HOLD_SEC:
+                self.toast(f"새 버전 {st['behind']}개", [st["subject"][:22], "넓은 칸을 2초 누르고 있으면", "업데이트 후 다시 켜져요"],
+                           "#9ece6a", 6)
+            elif not st["behind"]:
+                self.toast("최신 버전", ["업데이트 확인 중…" if not st["checked"] else "새 버전이 없어요"], "#7aa2f7", 3)
+                self.pool.submit(updater.check, True)
+        elif self.page == PARCEL_PAGE and (ev.index < 10 or ev.index >= 13):
+            self.on_parcel_press(ev.index, held)
         elif self.page == 6 and ev.index < 10:  # 히트맵 칸: HeatTab 새 탭
             self.pool.submit(market.open_heattab)
         elif self.page == 6 and ev.index == 11 and held < LONG_PRESS:  # 히트맵: 가운데 짧게 = 보기 전환
@@ -236,8 +304,147 @@ class Dashboard:
                 self.brightness_idx = (self.brightness_idx + 1) % len(BRIGHTNESS_STEPS)
                 self.deck.set_brightness(self.brightness)
                 self.render()
-            else:  # 짧게: 즉시 갱신
+            else:  # 짧게: 홈(바로가기)으로 + 즉시 갱신 (멍때리기 고르기 화면에서도 홈으로)
+                if self.page != HOME_PAGE or self.home_pick:
+                    self.home_pick = False
+                    self.go_page(HOME_PAGE)
                 self.fetch_now.set()
+
+    # ---- 인트로 · 홈 ----
+    def go_page(self, page: int, kind: str | None = None) -> None:
+        if page == AQUA_PAGE:
+            self.enter_aquarium(saver=False, kind=kind)
+            return
+        self.page = page
+        if page == HOME_PAGE:
+            self.home_note_page = 0
+        self.render()
+        if page == 6:
+            self.pool.submit(self.refresh_market)
+        if page == WT_PAGE:
+            self.pool.submit(self.refresh_worktrees)
+
+    def home_items(self) -> list[tuple[int, str, str, str, str]]:
+        """(페이지, 이름, 설명, 아이콘, 색)"""
+        items = [(1, "요약", "한도·작업", "chart", "#7aa2f7"), (2, "한도", "LLM 상세", "hourglass", "#bb9af7"),
+                 (3, "작업 현황", "에이전트", "robot", "#9ece6a"), (4, "머신", "CPU·디스크", "computer", "#73daca"),
+                 (5, "뽀모도로", "집중 타이머", "tomato", "#f7768e"), (6, "주식", "히트맵", "stocks", "#e0af68"),
+                 (GAME_PAGE, "게임", "8종", "gamepad", "#ff9e64")]
+        if PARCELS_ON:
+            items.append((PARCEL_PAGE, "택배", "도착 예상", "parcel", "#ff9e64"))
+        items.append((AQUA_PAGE, "어항", "물멍 · 불멍 · 비 · 바다", "fish", "#7dcfff"))
+        return (items + self.home_extra)[:10]
+
+    def render_home(self) -> None:
+        if self.home_pick:  # 물멍 / 불멍 고르기: 세로 두 칸짜리 큰 단추 두 개
+            body = {i: Button(bg="#101118") for i in range(10)}
+            for col, (title, sub, icon, color) in ((0, ("물멍", "어항 · 물소리", "fish", "#7dcfff")),
+                                                   (1, ("불멍", "벽난로 · 장작", "fire", "#ff7a3c")),
+                                                   (3, ("비멍", "비 오는 창가", "rain", "#7aa2f7")),
+                                                   (4, ("바다", "노을 · 파도", "wave", "#ff9e9e"))):
+                body[col] = Button(image=intro.shortcut_tile(title, sub, icon, color))
+                body[col + 5] = Button(image=intro.shortcut_tile(title, sub, icon, color))
+            small = render_message("멍때리기", ["물멍 · 불멍 · 비멍 · 바다 중에 골라요", "가운데 칸: 돌아가기"], "#7dcfff")
+            navs = nav(self.page, PAGES, self.brightness, ("홈", f"길게: 밝기 {self.brightness}"))
+            try:
+                self.deck.set_buttons({**body, **navs}, small_png=small)
+            except Exception as e:
+                print(f"{datetime.now():%H:%M:%S} home render error: {e}", flush=True)
+            return
+        body = {}
+        items = self.home_items()
+        for i in range(10):
+            if i < len(items):
+                _, title, sub, icon, color = items[i]
+                body[i] = Button(image=intro.shortcut_tile(title, sub, icon, color))
+            else:
+                body[i] = Button(bg="#16161e")
+        st = updater.status()
+        small = intro.home_wide(self.home_notes, self.home_fresh, intro.incoming() if st["behind"] else [],
+                                st["behind"], self.home_note_page)
+        if self.wt_msg and time.time() < self.wt_msg[3]:
+            small = render_message(*self.wt_msg[:3])
+        navs = nav(self.page, PAGES, self.brightness, ("홈", f"길게: 밝기 {self.brightness}"))
+        navs[11] = Button(header="홈", title="갱신", sub=f"길게: 밝기 {self.brightness}", bg="#1f2233", accent="#565f89")
+        try:
+            self.deck.set_buttons({**body, **navs}, small_png=small)
+        except Exception as e:
+            print(f"{datetime.now():%H:%M:%S} home render error: {e}", flush=True)
+
+    def play_intro(self) -> None:
+        """켜질 때 약 3초 인트로 → 홈. 아무 칸이나 누르면 건너뜀."""
+        self.home_notes, self.home_fresh = intro.whats_new(), intro.is_new()
+        self.intro_on, self.intro_skip = True, False
+        sub = intro.version_text()
+        play("intro")
+        t0 = time.time()
+        try:
+            while not self.intro_skip and time.time() - t0 < intro.INTRO_SEC:
+                f0 = time.time()
+                tiles, wide = intro.intro_frame(time.time() - t0, sub)
+                with self.render_lock:
+                    self.deck.set_buttons({i: Button(image=p) for i, p in tiles.items()}, small_png=wide)
+                time.sleep(max(0.0, 1 / intro.FPS - (time.time() - f0)))
+        except Exception as e:
+            print(f"intro error: {e}", flush=True)
+        self.intro_on = False
+        self.page = HOME_PAGE
+        intro.mark_seen()  # 다음에 켤 때는 이번 이후 바뀐 것만 '새로 바뀐 것'으로
+        self.render()
+
+    # ---- 택배 ----
+    def refresh_parcels(self, force: bool = False) -> None:
+        self.parcels = parcels.grouped(parcels.refresh(force))
+        self.parcels_at = time.time()
+        if self.page == PARCEL_PAGE:
+            self.render()
+
+    def import_parcels(self) -> None:
+        try:
+            parcels_import.run()
+        except BaseException as e:  # 로그인 만료 등: 로그만 남기고 계속
+            print(f"{datetime.now():%H:%M:%S} parcels import: {e}", flush=True)
+        self.refresh_parcels()
+
+    def on_parcel_press(self, idx: int, held: float) -> None:
+        shown = self.parcels[self.parcel_off:self.parcel_off + 9]
+        if idx == 9 or idx >= 13:  # 요약 칸·넓은 칸: 9개씩 넘겨 보기 (한 쪽뿐이면 새로 조회)
+            if len(self.parcels) > 9:
+                self.parcel_off = (self.parcel_off + 9) % len(self.parcels)
+                self.parcel_sel = None
+                self.render()
+            else:
+                self.pool.submit(self.refresh_parcels, True)
+            return
+        if idx >= len(shown):
+            return
+        k = self.parcel_off + idx
+        if held >= LONG_PRESS:  # 길게: 맥 브라우저에서 배송 조회 페이지 열기
+            parcels.open_tracking(self.parcels[k])
+            self.toast("배송 조회", [self.parcels[k].title[:16], "브라우저에서 열었어요"], "#ff9e64", 4)
+            return
+        self.parcel_sel = None if self.parcel_sel == k else k  # 짧게: 넓은 칸에 이동 기록
+        self.render()
+
+    def render_parcels(self) -> tuple[dict, bytes]:
+        shown = self.parcels[self.parcel_off:self.parcel_off + 9]
+        blink = int(time.time()) % 2 == 0
+        body = {}
+        for i in range(9):
+            if i < len(shown):
+                p = shown[i]
+                body[i] = Button(image=parcels.parcel_tile(p.title, p.stage, parcels.when_text(p), blink,
+                                                           self.parcel_sel == self.parcel_off + i))
+            else:
+                body[i] = Button(bg="#16161e")
+        coming = [p for p in self.parcels if p.stage < parcels.STAGE["도착"]]
+        today = sum(1 for p in coming if p.days_left() == 0)
+        week = sum(1 for p in coming if (p.days_left() or 0) <= 7)
+        body[9] = Button(image=parcels.summary_tile(len(coming), today, week))
+        sel = self.parcel_sel
+        small = parcels.wide_detail(self.parcels[sel]) if sel is not None and sel < len(self.parcels) \
+            else parcels.wide_summary(self.parcels)
+        return body, small
 
     # ---- 워크트리(하위 페이지) ----
     def refresh_worktrees(self) -> None:
@@ -321,6 +528,17 @@ class Dashboard:
 
         self.pool.submit(run)
 
+    def update_if_held(self, idx: int, pressed: float) -> None:
+        if self.pressed_at.get(idx) != pressed:  # 이미 뗐으면 취소
+            return
+        self.toast("업데이트 중…", ["새 버전을 받는 중", "잠시 뒤 다시 켜져요"], "#e0af68", 120)
+        ok, msg = updater.update()
+        if ok:
+            self.toast("업데이트 완료", [msg, "다시 켜는 중…"], "#9ece6a", 30)
+            updater.restart_soon()
+        else:
+            self.toast("업데이트 못 함", [msg, "터미널에서 git pull 해 주세요"], "#f7768e", 15)
+
     def toast(self, title: str, lines: list[str], color: str = "#bb9af7", sec: float = 8) -> None:
         self.wt_msg = (title, lines, color, time.time() + sec)
         self.render()
@@ -355,7 +573,22 @@ class Dashboard:
         self.pool.submit(run)
 
     # ---- 어항 (7페이지 · 화면보호기) ----
-    def enter_aquarium(self, saver: bool) -> None:
+    # 멍때리기 장면: 이름 → (장면, 배경음, 짧게 누르면)
+    SCENES = {"aqua": ("aquarium", "amb_water", "먹이"), "fire": ("fireplace", "amb_fire", "장작"),
+              "rain": ("rain", "amb_rain", "번개"), "beach": ("beach", "amb_waves", "큰 파도")}
+
+    def scene(self):
+        return getattr(self, self.SCENES.get(self.scene_kind, self.SCENES["aqua"])[0])
+
+    def enter_aquarium(self, saver: bool, kind: str | None = None) -> None:
+        if kind:
+            self.scene_kind = kind
+        elif saver and self.saver_cfg == "alternate":  # 화면보호기: 장면을 차례로 바꿔 가며
+            order = list(self.SCENES)
+            self.scene_kind = order[(order.index(self.scene_kind) + 1) % len(order)] if self.scene_kind in order else "aqua"
+        elif saver and self.saver_cfg in self.SCENES:
+            self.scene_kind = self.saver_cfg
+        ambient.start(self.SCENES.get(self.scene_kind, self.SCENES["aqua"])[1])
         self.saver_from = self.page if saver else None
         self.page = AQUA_PAGE
         self.aqua_entered = time.time()
@@ -364,7 +597,13 @@ class Dashboard:
             self.aqua_thread.start()
 
     def leave_aquarium(self, to: int | None = None) -> None:
-        self.page = to or self.saver_from or 1
+        """나가기: 화면보호기로 들어왔으면 원래 페이지로, 직접 들어왔으면 멍때리기 고르기 화면으로."""
+        if to:
+            self.page = to
+        elif self.saver_from is not None:
+            self.page = self.saver_from
+        else:
+            self.page, self.home_pick = HOME_PAGE, True
         self.saver_from = None
         self.render()
 
@@ -372,9 +611,10 @@ class Dashboard:
         """어항 페이지에 있는 동안 초당 AQUA_FPS 번 화면을 다시 보낸다."""
         while self.page == AQUA_PAGE and not self.stop.is_set():
             t0 = time.time()
-            self.aquarium.step(1 / AQUA_FPS)
+            self.scene().step(1 / AQUA_FPS)
             self.render()
             time.sleep(max(0.0, 1 / AQUA_FPS - (time.time() - t0)))
+        ambient.stop()  # 페이지를 떠나면 배경음도 끝
 
     # ---- 게임 (7페이지) ----
     def ensure_game_loop(self) -> None:
@@ -513,6 +753,12 @@ class Dashboard:
             chips.append((f"완료 {self.studio.done}", "#9ece6a" if self.studio.done else "#565f89"))
         else:
             chips.append(("스튜디오 OFF", "#f7768e"))
+        up = updater.status()["behind"]
+        if up:
+            chips.insert(0, (f"새 버전 {up}", "#9ece6a"))
+        today = sum(1 for p in self.parcels if p.stage < parcels.STAGE["도착"] and p.days_left() == 0)
+        if today:
+            chips.append((f"택배 오늘 {today}", "#ff9e64"))
         if self.pomo.state in ("running", "paused"):  # 타이머 진행 중이면 다른 페이지 시계에도 표시
             chips.append((f"집중 {int(self.pomo.remaining() // 60) + 1}분", "#f7768e"))
         else:
@@ -522,18 +768,33 @@ class Dashboard:
         return chips
 
     def render(self) -> None:
+        if self.intro_on:
+            return
+        if self.page == HOME_PAGE:
+            with self.render_lock:
+                self.render_home()
+            return
         if self.page == GAME_PAGE:
             self.render_game()
             return
         with self.render_lock:
             now = datetime.now(timezone.utc)
             if self.page == AQUA_PAGE:
-                hint = "짧게 눌러 먹이 · 길게 눌러 나가기" if time.time() - self.aqua_entered < 4 else None
-                tiles, wide = self.aquarium.tiles(hint)
+                hint = f"짧게 눌러 {self.SCENES.get(self.scene_kind, self.SCENES['aqua'])[2]} · 길게 눌러 나가기" \
+                    if time.time() - self.aqua_entered < 4 else None
+                tiles, wide = self.scene().tiles(hint)
                 try:
                     self.deck.set_buttons({i: Button(image=p) for i, p in tiles.items()}, small_png=wide)
                 except Exception as e:
                     print(f"{datetime.now():%H:%M:%S} aqua render error: {e}", flush=True)
+                return
+            if self.page == PARCEL_PAGE:
+                body, small = self.render_parcels()
+                try:
+                    self.deck.set_buttons({**body, **nav(self.page, PAGES, self.brightness, ("택배", "길게: 조회"))},
+                                          small_png=small)
+                except Exception as e:
+                    print(f"{datetime.now():%H:%M:%S} parcel render error: {e}", flush=True)
                 return
             if self.page == 1:
                 body = page_summary(self.llms, self.studio, now, self.blink_on)
@@ -579,6 +840,8 @@ class Dashboard:
                         small = render_message("워크트리", ["짧게: Herdr 에서 열기",
                                                          "길게 2번: 정리 가능 → 삭제",
                                                          "길게 2번: 그 외 → 총괄에 정리 요청"])
+                elif self.wt_msg and time.time() < self.wt_msg[3]:  # 알림(업데이트 등)이 있으면 잠깐 대신 표시
+                    small = render_message(*self.wt_msg[:3])
                 else:
                     small = render_clock(status=self.clock_status())
                 if self.page == WT_PAGE:
@@ -604,6 +867,13 @@ class Dashboard:
                 self.pool.submit(self.refresh_worktrees)
             if self.page == 6:
                 self.pool.submit(self.refresh_market)
+            if PARCELS_ON and parcels_import.PROFILE.exists() and time.time() - self.parcels_import_at > 3 * 3600:
+                self.parcels_import_at = time.time()  # 3시간마다 알리 주문 다시 가져오기 (전용 프로필로 화면 없이)
+                self.pool.submit(self.import_parcels)
+            if PARCELS_ON and (time.time() - self.parcels_at > parcels.POLL_SEC or
+                               (self.page == PARCEL_PAGE and time.time() - self.parcels_at > 300)):
+                self.parcels_at = time.time()
+                self.pool.submit(self.refresh_parcels)
             if self.page == DEV_PAGE:
                 self.machines = machine_stats(self.pool)
                 self.pool.submit(self.refresh_device)
@@ -622,6 +892,8 @@ class Dashboard:
         self.deck.set_brightness(self.brightness)
         self.deck.set_small_window(mode=SMALL_BACKGROUND)  # 넓은 칸 = 커스텀 시계 이미지
         print("D200 대시보드 시작 (Ctrl+C 종료)", flush=True)
+        updater.start_background()
+        self.play_intro()
         while not self.stop.is_set() and not self.deck.disconnected.is_set():
             self.fetch()
             self.render()

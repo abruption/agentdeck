@@ -18,7 +18,8 @@ You don't have to turn everything on. **LLM quotas and the pomodoro work right a
    - [Pomodoro (page 5)](#45-pomodoro-page-5)
    - [Korean stock heatmap (page 6)](#46-korean-stock-heatmap-page-6)
    - [Games (page 7)](#47-games-page-7)
-   - [Aquarium screensaver (page 8)](#48-aquarium-screensaver-page-8)
+   - [Chill screensavers](#48-chill-screensavers-aquarium--fire--rain--beach)
+   - [AliExpress parcel ETAs](#49-aliexpress-parcel-etas-optional)
 5. [Full config reference](#5-full-config-reference)
 6. [Troubleshooting](#6-troubleshooting)
 7. [Uninstall](#7-uninstall)
@@ -93,14 +94,18 @@ It now starts at login and restarts within 15 seconds if it stops. Unplugging an
 ├────┼────┼────┼────┼────┤
 │ 6  │ 7  │ 8  │ 9  │ 10 │
 ├────┼────┼────┼─────────┤
-│ ◀  │ ⟳  │ ▶  │  wide   │   ← shared buttons + wide tile (clock, etc.)
+│ ◀  │home│ ▶  │  wide   │   ← shared buttons + wide tile (clock, etc.)
 └────┴────┴────┴─────────┘
 ```
 
 | Button | Tap | Hold (0.8 s+) |
 |---|---|---|
 | ◀ / ▶ | Previous / next page | — |
-| Middle | Refresh now | Cycle brightness (20 → 50 → 80 → 100) |
+| Middle | Go **Home** (shortcuts) and refresh now | Cycle brightness (20 → 50 → 80 → 100) |
+
+**Intro and Home**: on start the keys light up in a wave and spell **AGENT / DECK** one letter per key for about 3 seconds (any key skips), then **Home** appears. Its 10 keys are **shortcuts** to every page, and the wide tile lists **what's new** since you last looked (tap for more).
+
+**Updates**: once a day it checks GitHub for a new version; if there is one, the clock and Home show **"Update N"**. On Home or a page with the clock, **hold the wide tile for 2 seconds** to download it (installing packages if needed) and restart. If it would clash with files you edited locally, it stops and tells you instead (your edits are never thrown away).
 
 **Colours mean the same thing on every page:**
 
@@ -287,21 +292,42 @@ The top ten keys become the game board. The menu shows seven games; press one to
 - Keys react **the moment you press**, not on release.
 - After a game, press the board to play again or the **middle button** for the menu. The middle button also quits a game in progress.
 - The screensaver stays off while you play.
+- **Sound effects**: the D200 has no speaker, so sounds play on the Mac the deck is plugged into (mole hits, memory notes, cards, slots, the race bell, hooves, slow-motion whoosh and crowd cheer, and more). Add `"sound": {"enabled": true, "volume": 0.6}` to `config.json` to turn them on; they are off by default.
 
-### 4.8 Aquarium screensaver (page 8)
+### 4.8 Chill screensavers: aquarium · fire · rain · beach
 
 <img src="images/page8-aquarium.gif" width="560">
 
 The whole deck (13 keys plus the wide tile) becomes **one screen** showing a pixel-art aquarium. Fish swim across key borders, seaweed sways and bubbles rise. **Pufferfish** sometimes puff up with spikes, **jellyfish** pulse and drift, and **crabs** scuttle sideways on the sand and pick up food that sinks to the bottom. A **turtle** cruises slowly, and an **octopus** crawls on the sand, now and then shooting upward with a puff of ink and changing colour. A **shark** patrols and now and then dashes, and nearby fish scatter.
 
+Press **Aquarium** on the Home screen to pick one of four scenes. Each uses the whole deck as one screen, with a matching **ambient loop** on the Mac speaker (when sound is on).
+
+| Scene | Picture | Tap | Ambient |
+|---|---|---|---|
+| 🐠 Aquarium | the pixel-art aquarium above | food | water · bubbles |
+| 🔥 Fire | a stacked log fire in a stone fireplace, sparks and embers | throw a log, the fire flares up | crackling wood |
+| 🌧️ Rain | a rainy night street seen from a window: blurred lights, a street lamp, wet road, drops on the glass, a plant and a mug on the sill | lightning · thunder | rain |
+| 🌊 Beach | a sunset beach: sun on the horizon, glittering water, waves rolling in and out, gulls | a big wave | waves |
+
 | Action | Result |
 |---|---|
-| **Tap** any key | Food drops there and the fish rush over |
-| **Hold** any key | Back to the page you were on |
+| **Tap** any key | scene action (table above) |
+| **Hold** any key | back to the scene picker if you came in yourself, or to the page you were on if it started as the screensaver |
 
 - It starts as soon as you reach page 8, and on its own after **10 idle minutes**. Change that with `"screensaver_min"` in `config.json`; `0` turns the auto start off.
 - An **agent alert or a finished pomodoro** pulls you straight out to the right page.
 - Redraws 5 times a second; each frame is about 11 KB, so it's light on the device.
+
+### 4.9 AliExpress parcel ETAs (optional)
+
+Set `"parcels": {"enabled": true}` in `config.json` to add a **parcels page** after Games. AliExpress orders are shown per box (orders sharing a tracking number are grouped).
+
+- Each key shows the item, **"Today / Tomorrow / in 3d"** and a stage bar (ordered → shipped → in transit → customs → local delivery → out for delivery → delivered). Parcels arriving today blink, and the clock shows a "Parcels today N" chip.
+- The wide tile charts **expected arrivals for the next two weeks**. Tap a parcel for its tracking events; **hold to open AliExpress tracking** in the Mac browser.
+- **Log in once**: `.venv/bin/python parcels_import.py login` opens a dedicated Chrome window; sign in to AliExpress yourself. This profile (`~/.cache/d200/ali-browser`) is separate from your everyday Chrome.
+- After that it re-imports orders, tracking numbers and ETAs **headlessly every 3 hours**, and refreshes tracking every 30 minutes. Run `.venv/bin/python parcels_import.py` to import now.
+- Safety: no password is stored or typed by the program. It only talks to the browser on this Mac (127.0.0.1) and only presses the **"View orders / load more"** button on the orders page (never confirm-received or cancel). Data stays in `~/.cache/d200/parcels.json`.
+- You can also add a tracking number by hand: `.venv/bin/python parcels.py add <tracking> "item name"`.
 
 ## 5. Full config reference
 
@@ -310,7 +336,10 @@ Everything lives in `config.json`. **Anything you leave out is turned off.** Res
 ```jsonc
 {
   "ui_lang": "en",              // on-device language: "en" or "ko"
-  "screensaver_min": 10,        // idle minutes before the aquarium screensaver (0 = off)
+  "screensaver_min": 10,        // idle minutes before the screensaver (0 = off)
+  "screensaver_scene": "aqua",  // screensaver scene: aqua · fire · rain · beach, or alternate
+  "sound": {"enabled": false, "volume": 0.6},  // sound effects and ambience on the Mac speaker
+  "parcels": {"enabled": false},  // AliExpress parcel ETA page
   "aquarium_fish": 14,          // number of fish in the aquarium
   "agent_source": "hooks",      // agent view: "hooks" or "herdr"
   "hooks": {
