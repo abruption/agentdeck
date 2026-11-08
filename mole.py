@@ -5,6 +5,7 @@
   mo purge --dry-run      : 정리 가능한 빌드 산출물 용량 (약 1분) ┐ 6시간 캐시,
   mo clean --dry-run      : 정리 가능한 캐시·로그 용량 (약 2분)   ┘ 기기 상세 페이지를 열 때 오래됐으면 다시 측정
 실행 (대시보드에서 길게 두 번 눌러 확인)
+  mo clean               : 캐시·로그 정리 (화면 없이 실행하면 Mole 이 묻지 않고 사용자 영역만 정리, sudo 필요한 시스템 캐시는 건너뜀)
   mo purge --yes          : 빌드 산출물 정리
   휴지통 비우기            : ~/.Trash 안의 항목 영구 삭제
 """
@@ -103,21 +104,26 @@ def refresh_dryrun(host: str, force: bool = False) -> None:
         try:
             res: dict = {}
             out = ANSI.sub("", _ssh(host, "mo purge --dry-run 2>&1 | tail -5", 300).stdout)
-            m = re.search(r"Would free:\s*([\d.]+\s*[KMGT]?B)\s*\|\s*Items:\s*(\d+)", out)
+            # 새 Mole 은 "Would free approximately: 14.33GB | Items: 61" 처럼 approximately 가 붙는다
+            m = re.search(r"Would free(?: approximately)?:\s*([\d.]+\s*[KMGT]?B)[^|\n]*\|\s*Items:\s*(\d+)", out)
             if m:
                 res["purge_gb"], res["purge_items"] = _size_gb(m.group(1)), int(m.group(2))
-            elif "nothing" in out.lower() or "no " in out.lower():
+            elif re.search(r"no artifacts were removed|nothing to (clean|purge)", out, re.I):
                 res["purge_gb"], res["purge_items"] = 0.0, 0
             out = ANSI.sub("", _ssh(host, "mo clean --dry-run 2>&1 | tail -8", 400).stdout)
             m = re.search(r"Potential space:\s*([\d.]+\s*[KMGT]?B)", out)
             if m:
                 res["clean_gb"] = _size_gb(m.group(1))
+            if "purge_gb" not in res and "clean_gb" not in res:
+                print(f"mole dry-run: {host} 결과를 읽지 못함 ({out.strip().splitlines()[-1:] or '출력 없음'})", flush=True)
             res["at"] = time.time()
             with _lock:
                 data = _load()
                 data[host] = {**data.get(host, {}), **res}
                 os.makedirs(os.path.dirname(CACHE_PATH), exist_ok=True)
                 json.dump(data, open(CACHE_PATH, "w"))
+        except Exception as e:  # 시간 초과 등: 로그만 남기고 다음 주기에 다시
+            print(f"mole dry-run: {host} 실패 {type(e).__name__}: {e}", flush=True)
         finally:
             with _lock:
                 _running.discard(host)
@@ -129,8 +135,28 @@ def refresh_dryrun(host: str, force: bool = False) -> None:
 def run_purge(host: str) -> tuple[bool, str]:
     r = _ssh(host, "mo purge --yes 2>&1 | tail -6", 900)
     out = ANSI.sub("", r.stdout)
-    m = re.search(r"(Freed|Would free|free[d]?):?\s*([\d.]+\s*[KMGT]?B)", out, re.I)
-    msg = f"{m.group(2)} 확보" if m else (out.strip().splitlines() or [""])[-1][:60]
+    m = re.search(r"space freed:\s*([\d.]+\s*[KMGT]?B)", out, re.I)
+    if m:  # 일부를 건너뛰어도(incomplete) 지운 만큼은 성공으로 본다
+        msg = f"{m.group(1)} 확보"
+    elif "no artifacts were removed" in out.lower():
+        msg = "지울 산출물이 없어요"
+    else:
+        msg = (out.strip().splitlines() or [""])[-1][:60]
+    refresh_dryrun(host, force=True)
+    return r.returncode == 0 or bool(m), msg
+
+
+def run_clean(host: str) -> tuple[bool, str]:
+    """mo clean 은 --yes 옵션이 없지만, 입력 터미널이 없으면 확인 없이 사용자 영역 캐시만 정리한다."""
+    r = _ssh(host, "mo clean < /dev/null 2>&1 | tail -12", 900)
+    out = ANSI.sub("", r.stdout)
+    m = re.search(r"Removed:\s*([\d.]+\s*[KMGT]?B)", out)
+    if m:
+        msg = f"{m.group(1)} 확보"
+    elif "no additional space" in out.lower():
+        msg = "이미 깨끗해요"
+    else:
+        msg = (out.strip().splitlines() or [""])[-1][:60]
     refresh_dryrun(host, force=True)
     return r.returncode == 0, msg
 

@@ -23,7 +23,7 @@ import market
 from aquarium import Aquarium
 from games import Games
 from config import CFG
-from mole import MOLE_HOSTS, dryrun_info, empty_trash, mole_status, refresh_dryrun, run_purge, trash_info
+from mole import MOLE_HOSTS, dryrun_info, empty_trash, mole_status, refresh_dryrun, run_clean, run_purge, trash_info
 from machines import MACHINES
 from worktrees import Worktree, ask_tower, open_in_herdr, remove_worktree, worktrees
 from pomodoro import PRESETS, Pomodoro, notify_done
@@ -258,6 +258,7 @@ class Dashboard:
             if st:
                 self.mole[name] = st
                 got.append(f"{name}={st.health}")
+                refresh_dryrun(host)  # 정리 가능 용량: 6시간마다 백그라운드 측정 (상세 페이지를 안 열어도)
         self.mole_at = time.time()
         print(f"{datetime.now():%H:%M:%S} mole: {' '.join(got) or '응답 없음'}", flush=True)
         if self.page in (4, DEV_PAGE):
@@ -285,12 +286,15 @@ class Dashboard:
     def on_device_press(self, idx: int, held: float) -> None:
         name = MACHINES[self.device_idx][0]
         host = MOLE_HOSTS.get(name)
-        if idx not in (8, 9) or not host:
+        if idx not in (7, 8, 9) or not host:
             return
-        action = "purge" if idx == 8 else "trash"
+        action = {7: "clean", 8: "purge", 9: "trash"}[idx]
         if held < LONG_PRESS:  # 짧게: 설명만
             dry, tr = dryrun_info(host), self.trash.get(name)
-            if action == "purge":
+            if action == "clean":
+                size = f"{dry['clean_gb']:.1f}GB" if dry.get("clean_gb") is not None else "측정 전"
+                self.toast("캐시·로그 정리", [f"{name} · {size}", "앱 캐시·로그·임시 파일 (mo clean)", "길게 2번 눌러 실행"], "#ff9e64")
+            elif action == "purge":
                 size = f"{dry['purge_gb']:.1f}GB · {dry.get('purge_items', 0)}개" if dry.get("purge_gb") is not None else "측정 전"
                 self.toast("빌드 산출물 정리", [f"{name} · {size}", "node_modules·.venv·dist 등", "길게 2번 눌러 실행"], "#ff9e64")
             else:
@@ -300,15 +304,17 @@ class Dashboard:
         armed = self.dev_armed if self.dev_armed and time.time() < self.dev_armed[2] else None
         if not armed or armed[:2] != (name, action):  # 길게 첫 번째: 확인 대기
             self.dev_armed = (name, action, time.time() + ARM_SEC)
-            what = "빌드 산출물 정리 (mo purge)" if action == "purge" else "휴지통 영구 비우기"
+            what = {"clean": "캐시·로그 정리 (mo clean)", "purge": "빌드 산출물 정리 (mo purge)",
+                    "trash": "휴지통 영구 비우기"}[action]
             self.toast("확인 필요", [name, what, f"{ARM_SEC}초 안에 길게 한 번 더"], "#f7768e", ARM_SEC)
             return
         self.dev_armed = None  # 길게 두 번째: 실행
-        self.toast("실행 중…", [name, "산출물 정리 중 (몇 분 걸릴 수 있어요)" if action == "purge" else "휴지통 비우는 중"],
-                   "#e0af68", 900)
+        doing = {"clean": "캐시 정리 중 (몇 분 걸릴 수 있어요)", "purge": "산출물 정리 중 (몇 분 걸릴 수 있어요)",
+                 "trash": "휴지통 비우는 중"}[action]
+        self.toast("실행 중…", [name, doing], "#e0af68", 900)
 
         def run() -> None:
-            ok, msg = run_purge(host) if action == "purge" else empty_trash(host)
+            ok, msg = {"clean": run_clean, "purge": run_purge, "trash": empty_trash}[action](host)
             self.toast("완료" if ok else "실패", [name, msg], "#9ece6a" if ok else "#f7768e", 15)
             self.refresh_device()
 

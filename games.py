@@ -1,4 +1,4 @@
-"""게임 페이지: 두더지 잡기 · 순서 기억 · 짝 맞추기 · 슬롯머신 · 블랙잭 · 포커 대결.
+"""게임 페이지: 두더지 잡기 · 순서 기억 · 짝 맞추기 · 슬롯머신 · 블랙잭 · 포커 대결 · 경마.
 
 판은 위 두 줄 10칸(0~9). 아래 줄은 페이지 넘김 버튼 그대로, 넓은 칸은 점수판.
 입력은 누르는 순간(press)에 처리해 반응을 빠르게 한다. 화면은 상태가 바뀔 때만 다시 보낸다.
@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import io
+import itertools
 import json
 import math
 import random
@@ -24,7 +25,7 @@ SIZE = 196
 WIDE = (458, 196)
 SAVE = Path.home() / ".cache" / "d200" / "games.json"
 
-GAMES = ["mole", "simon", "pairs", "slot", "bj", "poker"]  # 메뉴 칸 순서 (0번 칸부터)
+GAMES = ["mole", "simon", "pairs", "slot", "bj", "poker", "race"]  # 메뉴 칸 순서 (0번 칸부터)
 LOWER_IS_BETTER = {"pairs"}  # 짝 맞추기는 시도 횟수가 적을수록 좋은 기록
 EMOJI_FONT = "/System/Library/Fonts/Apple Color Emoji.ttc"
 PAIR_CARDS = ["🐟", "🐙", "🦀", "🐢", "🦈"]  # 어항 친구들 5쌍
@@ -125,7 +126,7 @@ def menu_tile(kind: str, best: str) -> bytes:
     img = Image.new("RGB", (SIZE, SIZE), (24, 26, 38))
     d = _Draw(img)
     title = {"mole": "두더지 잡기", "simon": "순서 기억", "pairs": "짝 맞추기", "slot": "슬롯머신", "bj": "블랙잭",
-             "poker": "포커 대결"}[kind]
+             "poker": "포커 대결", "race": "경마"}[kind]
     if kind == "mole":
         d.ellipse((48, 120, 148, 150), fill=(70, 46, 30))
         d.rounded_rectangle((66, 48, 130, 136), 30, fill=(140, 98, 66))
@@ -146,6 +147,12 @@ def menu_tile(kind: str, best: str) -> bytes:
     elif kind == "poker":
         for k, c in enumerate((("10", "♠"), ("J", "♠"), ("Q", "♠"))):
             img.paste(Image.open(io.BytesIO(play_card(c, "", 0.46))), (34 + k * 44, 50))
+    elif kind == "race":
+        d.rectangle((24, 118, 172, 140), fill=(176, 128, 82))
+        for y in range(46, 140, 12):  # 결승선
+            for c in range(2):
+                d.rectangle((150 + c * 8, y, 157 + c * 8, y + 11), fill=(20, 20, 24) if (y // 12 + c) % 2 else (245, 245, 245))
+        _paste_center(img, _emoji("🏇", 84).transpose(Image.FLIP_LEFT_RIGHT), 92, 94)
     elif kind == "bj":
         img.paste(Image.open(io.BytesIO(play_card(("A", "♠"), "", 0.55))), (36, 46))
         img.paste(Image.open(io.BytesIO(play_card(("K", "♥"), "", 0.55))), (64, 54))
@@ -397,6 +404,200 @@ def wide_panel(title: str, big: str, lines: list[str], color: str, bar: float | 
     return _png(img)
 
 
+# ---------- 경마 ----------
+RACE_FPS = 5  # 경주 화면 초당 장면 수 (어항과 같은 속도)
+RACE_W = SIZE * 5  # 윗줄 다섯 칸을 이어 붙인 경주로
+RACE_X0, RACE_X1 = 78, RACE_W - 50  # 출발선 · 결승선 (말 코끝 기준)
+RACE_LANE_Y = [62 + k * 28 for k in range(5)]  # 레인별 말 발 위치
+HORSE_NAMES = ["번개", "질풍", "천둥", "바람", "별빛", "흑진주", "은하", "태풍", "불꽃", "청룡", "백설", "먹구름"]
+HORSE_COLORS = ["#f7768e", "#7aa2f7", "#e0af68", "#9ece6a", "#bb9af7"]  # 1~5번 등번호 색
+
+
+def race_sim(power: list[float], rnd: random.Random) -> tuple[list[list[float]], list[int]]:
+    """한 경주를 장면 단위로 미리 계산. 반환: (장면마다 말 5마리의 위치 0=출발·1=결승, 착순).
+    말마다 힘(power)·기복(속도가 천천히 오르내림)·막판 스퍼트가 달라 역전이 자주 난다."""
+    pace = [0.0] * 5
+    kick = [rnd.uniform(0.9, 1.16) for _ in range(5)]  # 마지막 직선에서의 뒷심
+    kick_at = [rnd.uniform(0.62, 0.8) for _ in range(5)]
+    pos = [0.0] * 5
+    cross = [1e9] * 5  # 결승선을 넘은 시점 (장면 단위, 소수점까지)
+    frames = [pos[:]]
+    base = 1 / 42  # 평균 42장면(약 8초)에 결승
+    while min(pos) < 1.0 and len(frames) < 120:
+        for i in range(5):
+            if pos[i] >= 1.0:  # 결승선을 지난 말은 속도를 줄이며 조금 더 달린다 (착순이 눈에 보이게)
+                pos[i] = min(1.05, pos[i] + base * 0.5)
+                continue
+            pace[i] = max(-0.16, min(0.16, pace[i] * 0.85 + rnd.gauss(0, 0.06)))
+            v = base * power[i] * (1 + pace[i])
+            if pos[i] > kick_at[i]:
+                v *= kick[i]
+            if len(frames) < 4:  # 출발 직후엔 천천히 속도를 올린다
+                v *= 0.45 + 0.18 * len(frames)
+            if pos[i] + v >= 1.0:  # 결승선을 넘은 장면
+                cross[i] = len(frames) - 1 + (1.0 - pos[i]) / v
+                pos[i] = 1.0 + base * 0.3
+            else:
+                pos[i] += v
+        frames.append(pos[:])
+    for _ in range(3):  # 마지막 말이 들어온 뒤 잠깐 더
+        frames.append([min(1.05, p + base * 0.5) for p in frames[-1]])
+    return frames, sorted(range(5), key=lambda i: cross[i])
+
+
+BET_TYPES = {1: "단승", 2: "복승", 3: "삼복승"}  # 고른 말 수 → 승식 (한국 경마 이름). 두 마리는 쌍승으로 바꿀 수 있다
+BET_RULES = {1: "1착을 맞히면", 2: "두 마리가 1·2착 (순서 상관없이)", 3: "세 마리가 1·2·3착 (순서 상관없이)",
+             "exacta": "고른 순서대로 1착·2착"}
+RACE_TOGGLE = 0  # 두 마리를 골랐을 때 0번 칸 = 복승 ⇄ 쌍승
+RACE_CHIPS = (1, 2, 3, 4)  # 대기 중 윗줄에 베팅액 칩을 띄우는 칸 (0번 칸은 출발 게이트라 비워 둔다)
+
+
+def race_book(power: list[float], rnd: random.Random, n: int = 1200) -> dict:
+    """여러 번 미리 달려 보고 승식별 배당을 정한다 (돌려주는 돈 = 건 코인 × 배당, 약 3% 하우스 몫).
+    키: 고른 말 묶음 — 한 마리(단승) · 두 마리(복승: 1·2착) · 세 마리(삼복승: 1·2·3착),
+    순서가 있는 (1착, 2착) 튜플은 쌍승."""
+    hits: dict = {}
+    for _ in range(n):
+        order = race_sim(power, rnd)[1]
+        for key in (frozenset(order[:1]), frozenset(order[:2]), frozenset(order[:3]), tuple(order[:2])):
+            hits[key] = hits.get(key, 0) + 1
+    book: dict = {}
+    for combo in itertools.permutations(range(5), 2):
+        p = max(hits.get(combo, 0), 0.5) / n
+        book[combo] = min(500.0, max(1.2, round(0.97 / p, 1)))
+    for k in (1, 2, 3):
+        for combo in itertools.combinations(range(5), k):
+            p = max(hits.get(frozenset(combo), 0), 0.5) / n  # 한 번도 안 나온 조합도 배당은 있게
+            book[frozenset(combo)] = min(300.0, max(1.2, round(0.97 / p, 1)))
+    return book
+
+
+@lru_cache(maxsize=4)
+def _horse(size: int, frame: int) -> Image.Image:
+    """오른쪽으로 달리는 말 (이모지를 뒤집고, 장면마다 살짝 기울여 뛰는 느낌)."""
+    h = _emoji("🏇", size).transpose(Image.FLIP_LEFT_RIGHT)
+    return h.rotate(4 if frame else -3, resample=Image.BICUBIC, expand=True)
+
+
+@lru_cache(maxsize=2)
+def _race_bg(gate: bool) -> Image.Image:
+    img = Image.new("RGB", (RACE_W, SIZE), (46, 120, 66))
+    d = ImageDraw.Draw(img)
+    rnd = random.Random(7)
+    d.rectangle((0, 0, RACE_W, 22), fill=(30, 34, 52))  # 관중석
+    for _ in range(260):
+        x, y = rnd.randrange(RACE_W), rnd.randrange(3, 20)
+        d.ellipse((x - 3, y - 3, x + 3, y + 3), fill=rnd.choice([(247, 118, 142), (122, 162, 247), (224, 175, 104),
+                                                                  (158, 206, 106), (235, 235, 245), (187, 154, 247)]))
+    d.rectangle((0, 22, RACE_W, 27), fill=(235, 235, 240))  # 안쪽 난간
+    d.rectangle((0, 28, RACE_W, SIZE - 14), fill=(176, 128, 82))  # 흙 주로
+    for k in range(5):  # 레인 구분선
+        y = RACE_LANE_Y[k] + 4
+        d.line((0, y, RACE_W, y), fill=(160, 114, 72), width=2)
+    for x in range(0, RACE_W, 24):  # 흙 질감
+        for y in range(32, SIZE - 16, 9):
+            if rnd.random() < 0.35:
+                d.point((x + rnd.randrange(24), y + rnd.randrange(9)), fill=(150, 104, 64))
+    d.rectangle((0, SIZE - 14, RACE_W, SIZE - 10), fill=(235, 235, 240))  # 바깥 난간
+    for x in range(0, RACE_W, 40):
+        d.rectangle((x, SIZE - 14, x + 3, SIZE), fill=(220, 220, 228))
+    fx = RACE_X1 + 4  # 결승선 (체크무늬)
+    for y in range(28, SIZE - 14, 8):
+        for c in range(2):
+            d.rectangle((fx + c * 6, y, fx + c * 6 + 5, y + 7), fill=(20, 20, 24) if (y // 8 + c) % 2 else (245, 245, 245))
+    d.rectangle((fx + 2, 6, fx + 9, 28), fill=(230, 60, 70))  # 결승 기둥
+    for k in range(10):  # 거리 표시 기둥
+        x = RACE_X0 + (RACE_X1 - RACE_X0) * k // 10
+        d.rectangle((x, 22, x + 2, 27), fill=(230, 60, 70))
+    if gate:  # 출발 게이트
+        d.rectangle((RACE_X0 + 4, 26, RACE_X0 + 12, SIZE - 12), fill=(90, 94, 110))
+        for y in RACE_LANE_Y:
+            d.rectangle((RACE_X0 + 4, y - 22, RACE_X0 + 12, y + 2), fill=(200, 204, 214))
+    return img
+
+
+def race_track(pos: list[float], frame: int, gate: bool = False, mine: tuple[int, ...] = (),
+               winner: int | None = None) -> list[bytes]:
+    """윗줄 다섯 칸에 이어지는 경주로. 반환: 칸 0~4 PNG."""
+    img = _race_bg(gate).copy()
+    d = ImageDraw.Draw(img)
+    for i in range(5):
+        x = RACE_X0 + (RACE_X1 - RACE_X0) * min(pos[i], 1.05)
+        y = RACE_LANE_Y[i]
+        run = 0.0 < pos[i] < 1.05
+        if run:  # 뒤로 날리는 흙먼지
+            for k in range(3):
+                dx = 66 + k * 9 + ((frame + i + k) % 3) * 4
+                r = 5 - k
+                d.ellipse((x - dx - r, y - 4 - r - k * 2, x - dx + r, y - 4 + r - k * 2), fill=(214, 180, 140))
+        hop = 0 if not run else (-3 if (frame + i) % 2 else 1)
+        h = _horse(52, (frame + i) % 2 if run else 0)
+        img.paste(h, (int(x - h.width), int(y - h.height + 6 + hop)), h)
+        bx, by = int(x - h.width - 8), int(y - 14 + hop)  # 등번호: 꼬리 뒤
+        if i in mine:
+            d.ellipse((bx - 14, by - 14, bx + 14, by + 14), fill=(250, 210, 60))
+        d.ellipse((bx - 11, by - 11, bx + 11, by + 11), fill=_rgb(HORSE_COLORS[i]), outline=(25, 25, 30))
+        d.text((bx, by + 1), str(i + 1), font=_kr(16, 6), fill=(20, 20, 28), anchor="mm")
+        if winner == i:  # 우승 말 머리 위 왕관
+            _paste_center(img, _emoji("👑", 24), bx - 26, by)
+    return [_png(img.crop((k * SIZE, 0, (k + 1) * SIZE, SIZE))) for k in range(5)]
+
+
+@lru_cache(maxsize=64)
+def horse_card(no: int, name: str, odds: float, state: str = "", sub: str = "") -> bytes:
+    """아랫줄 말 카드. state: '' | mine(고른 말) | win(우승) | mine_win | dim"""
+    img = Image.new("RGB", (SIZE, SIZE), (13, 14, 20))
+    d = _Draw(img)
+    col = _rgb(HORSE_COLORS[no - 1])
+    gold = (250, 210, 60)
+    bg = (40, 34, 14) if "win" in state else ((34, 36, 54) if state != "dim" else (22, 23, 30))
+    edge = gold if ("mine" in state or "win" in state) else (60, 64, 82)
+    d.rounded_rectangle((6, 6, 189, 189), 22, fill=bg, outline=edge, width=7 if edge == gold else 2)
+    d.ellipse((18, 18, 70, 70), fill=col)
+    d.text((44, 45), str(no), font=_kr(32, 6), fill=(20, 20, 28), anchor="mm")
+    _paste_center(img, _emoji("🐎", 54).transpose(Image.FLIP_LEFT_RIGHT), 132, 46)
+    d.text((98, 104), name, font=_kr(32 if len(name) <= 2 else 26, 6), fill=(236, 238, 248), anchor="mm")
+    d.text((98, 146), f"{odds:g}배", font=_kr(30, 6), fill=gold if odds >= 4 else (192, 202, 245), anchor="mm")
+    if sub:
+        d.text((98, 174), sub, font=_kr(18, 4), fill=gold if "mine" in state or "win" in state else (150, 156, 180),
+               anchor="mm")
+    return _png(img)
+
+
+def bet_chip(track_png: bytes, amount: int, selected: bool) -> bytes:
+    """대기 중 경주로 칸 위에 띄우는 베팅액 칩 (뒤로 경주로가 비쳐 보이게)."""
+    img = Image.open(io.BytesIO(track_png)).convert("RGBA")
+    over = Image.new("RGBA", img.size, (0, 0, 0, 0))
+    od = ImageDraw.Draw(over)
+    gold = (250, 210, 60)
+    od.ellipse((48, 48, 148, 148), fill=(*gold, 245) if selected else (20, 22, 32, 200),
+               outline=(255, 255, 255, 230) if selected else (*gold, 220), width=5)
+    for a in range(0, 360, 45):  # 칩 테두리 무늬
+        x, y = 98 + 44 * math.cos(math.radians(a)), 98 + 44 * math.sin(math.radians(a))
+        od.ellipse((x - 5, y - 5, x + 5, y + 5), fill=(255, 255, 255, 200) if selected else (*gold, 160))
+    img = Image.alpha_composite(img, over).convert("RGB")
+    d = _Draw(img)
+    tc = (20, 20, 28) if selected else (240, 242, 250)
+    d.text((98, 92), str(amount), font=_kr(42, 6), fill=tc, anchor="mm")
+    d.text((98, 126), "코인", font=_kr(16, 4), fill=tc, anchor="mm")
+    return _png(img)
+
+
+def kind_chip(track_png: bytes, exacta: bool) -> bytes:
+    """두 마리를 골랐을 때 0번 칸 위에 띄우는 승식 전환 단추 (복승 ⇄ 쌍승)."""
+    img = Image.open(io.BytesIO(track_png)).convert("RGBA")
+    over = Image.new("RGBA", img.size, (0, 0, 0, 0))
+    ImageDraw.Draw(over).rounded_rectangle((14, 40, 182, 156), 22, fill=(20, 22, 32, 215),
+                                           outline=(250, 210, 60, 230), width=4)
+    img = Image.alpha_composite(img, over).convert("RGB")
+    d = _Draw(img)
+    gold, dim = (250, 210, 60), (130, 136, 160)
+    d.text((98, 72), "복승", font=_kr(30, 6), fill=dim if exacta else gold, anchor="mm")
+    d.text((98, 98), "⇅", font=_kr(20, 4), fill=(200, 204, 220), anchor="mm")
+    d.text((98, 126), "쌍승", font=_kr(30, 6), fill=gold if exacta else dim, anchor="mm")
+    return _png(img)
+
+
 # ---------- 게임 상태 ----------
 class Games:
     """mode: menu | mole | simon | pairs | slot. phase: play | show | input | over"""
@@ -451,6 +652,18 @@ class Games:
         self.opp_swapped = 0
         self.held = [False] * 5
         self.poker_cmp = 0  # 1 이김, 0 비김, -1 짐
+        # 경마
+        self.race_names: list[str] = []
+        self.race_power: list[float] = []
+        self.race_odds: list[float] = []  # 말별 단승 배당
+        self.race_book: dict = {}  # 승식별 배당
+        self.race_exacta = False  # 두 마리를 골랐을 때 쌍승(순서대로)인지
+        self.race_pick: list[int] = []  # 고른 말 (1~3마리)
+        self.race_frames: list[list[float]] = []
+        self.race_order: list[int] = []
+        self.race_start = 0.0
+        self.race_lead: tuple[int, float] = (-1, 0.0)  # (선두 말, 선두가 바뀐 시각)
+        self._race_tiles: tuple[tuple, list[bytes]] | None = None
 
     @property
     def active(self) -> bool:
@@ -461,6 +674,8 @@ class Games:
             return self.phase == "dealer" or time.time() < self.win_until
         if self.mode == "poker":
             return self.phase == "opp" or time.time() < self.win_until
+        if self.mode == "race":
+            return self.phase in ("gate", "run") or time.time() < self.win_until
         return self.mode != "menu" and self.phase != "over"
 
     # ---- 저장 ----
@@ -481,7 +696,7 @@ class Games:
         v = self.best.get(mode, 0)
         if mode == "pairs":
             return f"최고 {v}번" if v else "기록 없음"
-        if mode in ("slot", "bj", "poker"):
+        if mode in ("slot", "bj", "poker", "race"):
             return f"코인 {self.coins}"
         return f"최고 {v}"
 
@@ -522,6 +737,9 @@ class Games:
                 return
             if self.mode == "poker":
                 self._press_poker(idx, now)
+                return
+            if self.mode == "race":
+                self._press_race(idx, now)
                 return
             if idx >= BOARD:
                 return
@@ -734,6 +952,79 @@ class Games:
         self.phase = "done"
         self._save_coins()
 
+    # ---- 경마 (말 5마리, 단승 · 복승 · 삼복승) ----
+    def _press_race(self, idx: int, now: float) -> None:
+        """대기 중: 아랫줄 말을 눌러 고르기/빼기 (1마리 단승, 2마리 복승, 3마리 삼복승),
+        윗줄 칩 = 베팅액 1·2·5·10, 넓은 칸 = 출발. 끝난 뒤: 아무 칸 = 다음 경주."""
+        if self.phase == "bet":
+            if 5 <= idx < BOARD:
+                k = idx - 5
+                if k in self.race_pick:
+                    self.race_pick.remove(k)
+                else:
+                    if len(self.race_pick) == 3:  # 네 번째를 고르면 가장 먼저 고른 말을 뺀다
+                        self.race_pick.pop(0)
+                    self.race_pick.append(k)
+            elif idx == RACE_TOGGLE and len(self.race_pick) == 2:
+                self.race_exacta = not self.race_exacta
+            elif idx in RACE_CHIPS:
+                self.bet = BJ_BETS[RACE_CHIPS.index(idx)]
+            elif idx >= 13 and self.race_pick:
+                self._race_go(now)
+        elif self.phase == "done" and now - self.over_at > 0.8:
+            self._race_card()
+
+    def race_exacta_on(self) -> bool:
+        return self.race_exacta and len(self.race_pick) == 2
+
+    def race_kind(self) -> str:
+        return "쌍승" if self.race_exacta_on() else BET_TYPES.get(len(self.race_pick), "")
+
+    def race_bet_odds(self) -> float:
+        key = tuple(self.race_pick) if self.race_exacta_on() else frozenset(self.race_pick)
+        return self.race_book.get(key, 0.0)
+
+    def _race_card(self) -> None:
+        """새 경주: 출전마 5마리와 배당 정하기."""
+        self.race_names = self.rnd.sample(HORSE_NAMES, 5)
+        self.race_power = [self.rnd.uniform(0.975, 1.025) for _ in range(5)]
+        self.race_book = race_book(self.race_power, self.rnd)
+        self.race_odds = [self.race_book[frozenset([i])] for i in range(5)]
+        self.race_frames, self.race_order, self.race_pick = [[0.0] * 5], [], []
+        self.phase, self.win, self.race_lead = "bet", 0, (-1, 0.0)
+
+    def _race_go(self, now: float) -> None:
+        if self.coins <= 0:
+            self.coins = SLOT_START
+        self.bet_now = min(self.bet, self.coins)
+        self.coins -= self.bet_now
+        self._save_coins()
+        self.race_frames, self.race_order = race_sim(self.race_power, self.rnd)
+        self.phase, self.race_start = "gate", now + 1.5  # 1.5초 출발 대기 (3·2·1)
+
+    def race_hit(self) -> bool:
+        n = len(self.race_pick)
+        if self.race_exacta_on():
+            return self.race_order[:2] == self.race_pick
+        return bool(n) and set(self.race_order[:n]) == set(self.race_pick)
+
+    def race_frame(self, now: float | None = None) -> int:
+        now = time.time() if now is None else now
+        if self.phase in ("bet", "gate") or not self.race_frames:
+            return 0
+        if self.phase == "done":
+            return len(self.race_frames) - 1
+        return max(0, min(len(self.race_frames) - 1, int((now - self.race_start) * RACE_FPS)))
+
+    def _race_settle(self, now: float) -> None:
+        pay = int(self.bet_now * self.race_bet_odds()) if self.race_hit() else 0
+        self.coins += pay
+        self.win = pay - self.bet_now
+        self.phase, self.over_at = "done", now
+        if pay:
+            self.win_until = now + 2.4
+        self._save_coins()
+
     def _save_coins(self) -> None:
         self.best["slot_coins"] = self.coins
         self.best["slot"] = max(self.best.get("slot", 0), self.coins)
@@ -752,6 +1043,8 @@ class Games:
                 self.rnd.shuffle(self.cards)
                 self.matched, self.open = set(), []
                 self.phase, self.peek_until, self.started = "play", now + 1.5, now
+            elif mode == "race":
+                self._race_card()
             elif mode == "poker":
                 self.phase, self.hand, self.opp, self.held = "bet", [], [], [False] * 5
             elif mode == "bj":
@@ -796,6 +1089,17 @@ class Games:
             elif self.mode == "pairs":
                 if len(self.open) == 2 and now >= self.flip_back:
                     self.open = []
+            elif self.mode == "race":
+                if self.phase == "gate" and now >= self.race_start:
+                    self.phase = "run"
+                if self.phase == "run":
+                    f = self.race_frame(now)
+                    pos = self.race_frames[f]
+                    lead = max(range(5), key=lambda i: pos[i])
+                    if lead != self.race_lead[0]:
+                        self.race_lead = (lead, now)
+                    if f >= len(self.race_frames) - 1:
+                        self._race_settle(now)
             elif self.mode == "poker":
                 if self.phase == "opp" and now >= self.next_draw:
                     self._poker_showdown(now)
@@ -849,6 +1153,8 @@ class Games:
                     else:
                         out[i] = card_tile(None, "down")
                 return out
+            if self.mode == "race":
+                return self._race_tiles_now(now)
             if self.mode == "poker":
                 out = {}
                 glow_on = now < self.win_until and int(now * 5) % 2 == 0
@@ -910,13 +1216,109 @@ class Games:
                     out[i] = simon_tile(i, i == self.lit)
             return out
 
+    def _race_ranks(self, f: int) -> list[int]:
+        """장면 f 의 순위 (말 번호 0~4 를 앞선 순서로). 끝났으면 실제 착순."""
+        if self.phase == "done":
+            return self.race_order
+        pos = self.race_frames[f]
+        return sorted(range(5), key=lambda i: -pos[i])
+
+    def _race_tiles_now(self, now: float) -> dict[int, bytes]:
+        f = self.race_frame(now)
+        blink = self.phase == "done" and now < self.win_until and int(now * 5) % 2 == 0
+        picks = tuple(self.race_pick)
+        key = (f, self.phase, picks, blink, tuple(self.race_names), self.bet, self.race_exacta_on())
+        if self._race_tiles and self._race_tiles[0] == key:  # 같은 장면이면 다시 그리지 않는다
+            return dict(enumerate(self._race_tiles[1]))
+        done = self.phase == "done"
+        winner = self.race_order[0] if done else None
+        tiles = race_track(self.race_frames[f], f, self.phase in ("bet", "gate"), picks, winner)
+        if self.phase == "bet":  # 윗줄 빈 경주로 위에 베팅액 칩
+            for c, k in enumerate(RACE_CHIPS):
+                tiles[k] = bet_chip(tiles[k], BJ_BETS[c], self.bet == BJ_BETS[c])
+            if len(picks) == 2:
+                tiles[RACE_TOGGLE] = kind_chip(tiles[RACE_TOGGLE], self.race_exacta_on())
+        ranks = self._race_ranks(f)
+        n = len(picks)
+        for k in range(5):
+            mine = k in picks
+            if self.phase == "bet":
+                if not mine:
+                    state, sub = "", ""
+                elif self.race_exacta_on():
+                    state, sub = "mine", f"{picks.index(k) + 1}착 예상"
+                else:
+                    state, sub = "mine", (f"{picks.index(k) + 1}번째 선택" if n > 1 else "선택")
+            elif self.phase == "gate":
+                state, sub = ("mine" if mine else ""), ("내 말" if mine else "")
+            elif self.phase == "run":
+                state, sub = ("mine" if mine else ""), f"{ranks.index(k) + 1}위"
+            else:
+                placed = k in self.race_order[:max(n, 1)]  # 맞혀야 하는 자리(1착 / 1·2착 / 1·2·3착)에 든 말
+                state = ("mine_win" if mine else "win") if placed and not blink else ("mine" if mine else ("" if placed else "dim"))
+                sub = f"{ranks.index(k) + 1}착"
+            tiles.append(horse_card(k + 1, self.race_names[k], self.race_odds[k], state, sub))
+        self._race_tiles = (key, tiles)
+        return dict(enumerate(tiles))
+
+    def _race_wide(self) -> bytes:
+        now = time.time()
+        picks = self.race_pick
+        n = len(picks)
+        kind = self.race_kind()
+        nums = ("→" if self.race_exacta_on() else "·").join(str(i + 1) for i in picks)
+        if self.phase == "bet":
+            if not picks:
+                return wide_panel("경마", str(self.coins), ["아랫줄 말 고르기: 1마리 단승",
+                                                         "2마리 복승·쌍승 · 3마리 삼복승",
+                                                         "윗줄 칩: 베팅액"], "#ff9e64")
+            odds = self.race_bet_odds()
+            rule = BET_RULES["exacta" if self.race_exacta_on() else n]
+            hint = "왼쪽 위 칸: 복승 ⇄ 쌍승" if n == 2 else "여기를 누르면 출발"
+            return wide_panel(f"{kind} {nums}번 · {odds:g}배", "출발",
+                              [rule, f"{self.bet}코인 걸기 → 맞히면 {int(self.bet * odds)}코인", hint], "#ff9e64")
+        if self.phase == "gate":
+            left = max(1, math.ceil(self.race_start - now))
+            return wide_panel("출발 준비", str(left), [f"{kind} {nums}번", f"{self.bet_now}코인 · {self.race_bet_odds():g}배"],
+                              "#e0af68")
+        f = self.race_frame(now)
+        ranks = self._race_ranks(f)
+        order = " · ".join(str(i + 1) for i in ranks)
+        mine = "·".join(str(ranks.index(i) + 1) for i in sorted(picks, key=ranks.index))
+        if self.phase == "run":
+            pos = self.race_frames[f]
+            lead = ranks[0]
+            lead_name = f"{lead + 1}번 {self.race_names[lead]}"
+            gap = pos[ranks[0]] - pos[ranks[1]]
+            if f < 5:
+                head = "출발했습니다!"
+            elif pos[lead] > 0.72 and gap < 0.015:
+                head = "마지막 직선, 접전!"
+            elif now - self.race_lead[1] < 1.4 and f > 6:
+                head = f"{lead_name} 선두로!"
+            elif pos[lead] > 0.72:
+                head = f"마지막 직선! {lead_name}"
+            else:
+                head = f"{lead_name} 선두"
+            return wide_panel(head, f"{mine}위", [f"순위 {order}", f"{kind} {nums}번"], "#ff9e64", pos[lead])
+        w = self.race_order[0]
+        won = self.race_hit()
+        head = f"{w + 1}번 {self.race_names[w]} 우승!"
+        big = f"+{self.win}" if self.win > 0 else str(self.win)
+        mine_each = " · ".join(f"{i + 1}번 {ranks.index(i) + 1}착" for i in sorted(picks, key=ranks.index))
+        first = f"{kind} 적중! {self.race_bet_odds():g}배" if won else f"{kind}: {mine_each}"
+        return wide_panel(head, big, [first, f"착순 {order} · 코인 {self.coins}", "아무 칸: 다음 경주"],
+                          "#9ece6a" if won else "#f7768e")
+
     def wide(self) -> bytes:
         with self.lock:
             best = self.best.get(self.mode, 0)
             if self.mode == "menu":
                 return wide_panel("게임", "", ["하고 싶은 게임 칸을 누르세요",
-                                              "두더지 · 순서 · 짝 · 슬롯 · 블랙잭 · 포커",
+                                              "두더지 · 순서 · 짝 · 슬롯 · 블랙잭 · 포커 · 경마",
                                               "가운데 버튼: 게임 중 메뉴로"], "#9ece6a")
+            if self.mode == "race":
+                return self._race_wide()
             if self.mode == "poker":
                 if self.phase in ("play", "opp"):
                     me = POKER_NAMES[poker_rank(self.hand)[0]]
@@ -991,4 +1393,5 @@ class Games:
             return (self.mode, self.phase, self.score, self.pos, len(self.seq), sec, self.new_best, self.coins,
                     any(self.spinning), now < self.win_until, now < self.peek_until, len(self.matched),
                     len(self.player), len(self.dealer), self.hole, self.result, self.bet, tuple(self.held),
-                    tuple(self.hand), tuple(self.opp))
+                    tuple(self.hand), tuple(self.opp), tuple(self.race_pick), self.race_frame(now) if self.mode == "race" else 0,
+                    math.ceil(self.race_start - now) if self.phase == "gate" else 0, tuple(self.race_names))

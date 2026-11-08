@@ -84,7 +84,7 @@ git worktrees grouped as **stale, mergeable, old, active**. Hold twice to remove
 <td valign="top">
 
 ### 4 · Machines and device detail
-CPU, memory, disk and external drives across Macs, with the [Mole](https://github.com/tw93/Mole) **health score**. Press a machine for details, where you can **purge build artifacts and empty the Trash**.
+CPU, memory, disk and external drives across Macs, with the [Mole](https://github.com/tw93/Mole) **health score**. Press a machine for details, where you can **clean caches, purge build artifacts and empty the Trash**.
 
 <sub>→ [Guide: machines](docs/GUIDE.en.md#44-machines-and-device-detail-page-4)</sub>
 
@@ -116,7 +116,7 @@ Korean stocks coloured by daily change, like [HeatTab](https://heattab.app) (red
 <td valign="top">
 
 ### 7 · Games
-The top ten keys become a game board: **whack-a-mole** (30 s, golden +3, bomb −3), **memory** (repeat the order keys light up in), **pairs** with the aquarium friends, **slots** where you stop each reel yourself, **blackjack** with hit, stand and double, and a **poker duel** against the computer. Scores and coins are saved.
+The top ten keys become a game board: **whack-a-mole** (30 s, golden +3, bomb −3), **memory** (repeat the order keys light up in), **pairs** with the aquarium friends, **slots** where you stop each reel yourself, **blackjack** with hit, stand and double, a **poker duel** against the computer, and a **horse race** (win, quinella, exacta and trio bets) run across a track made from the top five keys. Scores and coins are saved.
 
 <sub>→ [Guide: games](docs/GUIDE.en.md#47-games-page-7)</sub>
 

@@ -229,6 +229,35 @@ def game_gif(path: str) -> None:
     snap(900)
     g.phase, g.poker_cmp, g.win, g.coins = "done", 1, 18, 92
     snap(1800)
+    # 경마: 말 고르기 → 출발 → 역전 → 우승
+    import random as _r
+
+    g.mode, g.win_until, g.coins, g.bet = "race", 0, 92, 5
+    g.rnd = _r.Random(11)
+    g._race_card()
+    g.race_names = ["번개", "흑진주", "태풍", "은하", "청룡"]
+    g._race_tiles = None
+    while True:  # 복승(3번·1번)으로 골랐고, 3번이 막판에 역전해 1·2착을 차지하는 경주를 찾는다
+        race, order = games.race_sim(g.race_power, g.rnd)
+        early = max(range(5), key=lambda i: race[len(race) // 2][i])
+        if set(order[:2]) == {0, 2} and order[0] == 2 and early != 2:
+            break
+    g.race_pick = [2]
+    snap(700)
+    g.race_pick = [2, 0]
+    snap(1300)
+    g.phase, g.race_frames, g.race_order, g.bet_now = "gate", race, order, 5
+    g.race_start = _t.time() + 1
+    snap(700)
+    for f in range(0, len(race), 2):
+        g.phase, g.race_start = "run", _t.time() - f / games.RACE_FPS
+        lead = max(range(5), key=lambda i: race[f][i])
+        g.race_lead = (lead, g.race_lead[1] if g.race_lead[0] == lead else _t.time())
+        snap(300)
+    pay = int(5 * g.race_bet_odds())
+    g.coins += pay
+    g.phase, g.win, g.win_until = "done", pay - 5, 0
+    snap(2200)
     frames[0].save(path, save_all=True, append_images=frames[1:], duration=ms, loop=0, optimize=True)
 
 

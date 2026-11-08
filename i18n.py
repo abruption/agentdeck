@@ -32,9 +32,22 @@ PATTERNS: list[tuple[str, str]] = [
     (r"(\d+)시간", r"\1h"),
     (r"(\d+)일", r"\1d"),
     (r"CPU (\d+)위", r"CPU #\1"),
+    (r"([\d·→]+)번(?= ·|$|\s*$)", r"#\1"),  # 복승 3·1번, 쌍승 4→2번
+    (r"(\d)번 (\d)착", lambda m: f"#{m.group(1)} {_ord(int(m.group(2)))}"),
+    (r"^([\d·]+)위$", r"P\1"),
+    (r"(\d)번째 선택", r"pick \1"),
+    (r"(\d)착 예상", lambda m: f"{_ord(int(m.group(1)))} pick"),
+    (r"(\d)번 (?=(흑진주|먹구름|번개|질풍|천둥|바람|별빛|은하|태풍|불꽃|청룡|백설))", r"#\1 "),  # 경마 말 번호
+    (r"^(\d)위$", r"#\1"),
+    (r"^(\d)착$", r"#\1"),
+    (r"내 말 (\d)착", r"My horse #\1"),
     (r"([\d.]+[GT]B) 중", r"of \1"),
     (r"%H:%M 종료", r"%H:%M end"),
 ]
+
+def _ord(n: int) -> str:
+    return f"{n}{ {1: 'st', 2: 'nd', 3: 'rd'}.get(n, 'th')}"
+
 
 MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 
@@ -55,6 +68,12 @@ WORDS: list[tuple[str, str]] = sorted([
     ("두더지 · 순서 기억 · 짝 맞추기 · 슬롯머신", "Mole · Memory · Pairs · Slots"),
     ("가운데 버튼: 게임 중 메뉴로", "Middle: back to menu"),
     ("두더지 · 순서 · 짝 · 슬롯 · 블랙잭 · 포커", "Mole · Memory · Pairs · Slots · BJ · Poker"),
+    ("두더지 · 순서 · 짝 · 슬롯 · 블랙잭 · 포커 · 경마", "Mole · Memory · Pairs · Slots · BJ · Poker · Race"), ("아랫줄에서 우승할 말을 고르세요", "Pick a winner on the bottom row"), ("배당이 높을수록 이기기 어려운 말", "Higher odds = longer shot"), ("여기를 누르면 출발", "Press here to start"), ("또 누르면 변경", "tap again to change"), ("아무 칸: 다음 경주", "Any key: next race"), ("마지막 직선, 접전!", "Final stretch, neck and neck!"), ("마지막 직선!", "Final stretch!"), ("출발했습니다!", "And they're off!"), ("선두로!", "takes the lead!"), ("선두", "leads"), ("우승!", "wins!"), ("맞혔어요! ", "Winner! "), ("출발 준비", "Get ready"), ("맞히면", "pays"), ("쌍승", "Exacta"), ("고른 순서대로 1착·2착", "1st and 2nd in the order you picked"),
+    ("왼쪽 위 칸: 복승 ⇄ 쌍승", "Top-left: Quinella ⇄ Exacta"), ("2마리 복승·쌍승 · 3마리 삼복승", "2 = Quinella/Exacta · 3 = Trio"),
+    ("착 예상", " place pick"), ("삼복승", "Trio"), ("복승", "Quinella"), ("단승", "Win"), (" 적중!", " hit!"),
+    ("아랫줄 말 고르기: 1마리 단승", "Bottom row: 1 horse = Win"), ("2마리 복승 · 3마리 삼복승 (순서 상관없이)", "2 = Quinella · 3 = Trio (any order)"),
+    ("윗줄 칩: 베팅액", "Top chips: bet size"), ("1착을 맞히면", "Pick the winner"), ("두 마리가 1·2착 (순서 상관없이)", "Both finish 1st-2nd (any order)"),
+    ("세 마리가 1·2·3착 (순서 상관없이)", "All three finish top 3 (any order)"), ("번째 선택", " pick"), ("선택", "picked"), ("착순", "Order"), ("순위", "Pos"), ("내 말", "My horse"), ("경마", "Horse race"), ("출발", "GO"), ("흑진주", "Black Pearl"), ("먹구름", "Storm Cloud"), ("번개", "Bolt"), ("질풍", "Gale"), ("천둥", "Thunder"), ("바람", "Breeze"), ("별빛", "Starlight"), ("은하", "Galaxy"), ("태풍", "Typhoon"), ("불꽃", "Blaze"), ("청룡", "Blue Dragon"), ("백설", "Snowy"),
     ("포커 대결", "Poker duel"), ("하이카드", "High card"), ("원페어", "One pair"), ("상대가 바꾸는 중", "Opponent drawing"),
     ("상대", "Opp"), ("장 교체", " swapped"), ("내 패", "Me"), ("내 카드를 눌러 킵", "Tap your cards to hold"),
     ("킵 다 고르면 여기 누르기", "Then press here to draw"), ("컴퓨터와 5장 드로우 포커", "5-card draw vs computer"),
@@ -86,7 +105,8 @@ WORDS: list[tuple[str, str]] = sorted([
     ("config 에 종목 추가", "add codes in config"), ("없는 업종", "unknown sector"), ("조회 실패", "lookup failed"),
     ("기타 총괄", "Other leads"), ("작업 현황", "Agents"), ("작업 중", "Working"), ("위임 중", "Delegated"),
     ("총괄 지시?", "Ask lead?"), ("총괄", "lead"),
-    ("빌드 산출물", "Build artifacts"), ("캐시 정리 가능", "cache"), ("정리 가능", "Mergeable"),
+    ("캐시·로그 정리", "Clean caches & logs"), ("캐시·로그", "Caches & logs"), ("앱 캐시·로그·임시 파일", "app caches, logs, temp files"),
+    ("캐시 정리 중", "Cleaning caches"), ("이미 깨끗해요", "already clean"), ("빌드 산출물", "Build artifacts"), ("캐시 정리 가능", "cache"), ("정리 가능", "Mergeable"),
     ("디스크 남음", "Disk free"), ("남은 용량", "free"), ("사용률", "usage"), ("Mole 측정값", "from Mole"),
     ("재시작 권장", "restart advised"), ("Mole 없음", "no Mole"),
     ("다음 기기", "Next Mac"), ("시간 선택", "Pick a time"), ("집중 중", "Focus"), ("일시정지", "Paused"),

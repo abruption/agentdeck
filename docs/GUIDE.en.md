@@ -220,10 +220,11 @@ If you manage agents with [Herdr](https://herdr.dev), this mode gives you more:
 
 <img src="images/device.en.png" width="560">
 
-- The top 3 CPU processes. Anything hogging the CPU for over 5 minutes turns red.
+- The top 2 CPU processes. Anything hogging the CPU for over 5 minutes turns red.
+- **Clean caches & logs** removes app caches, logs and temp files (`mo clean`). System caches that need admin rights are skipped; only your user area is cleaned.
 - **Purge build artifacts** removes things like `node_modules`, `.venv` and `dist` (`mo purge`). ⚠️ Active projects may need a reinstall afterwards.
 - **Empty Trash** deletes permanently.
-- Both need a **double hold** to run; a tap just explains what would be removed.
+- All three need a **double hold** to run; a tap just explains what would be removed.
 
 **How to enable**
 
@@ -271,7 +272,7 @@ Korean stocks coloured by daily change: **red is up, blue is down** (the Korean 
 
 <img src="images/page7-games.en.gif" width="560">
 
-The top ten keys become the game board. The menu shows six games; press one to start. The wide tile is the scoreboard, and best scores are saved.
+The top ten keys become the game board. The menu shows seven games; press one to start. The wide tile is the scoreboard, and best scores are saved.
 
 | Game | How to play |
 |---|---|
@@ -280,7 +281,8 @@ The top ten keys become the game board. The menu shows six games; press one to s
 | 🃏 **Pairs** | Find five pairs of aquarium friends (fish, octopus, crab, turtle, shark). Every card shows for 1.5 s at the start. **Fewer tries** is a better score |
 | 🃏 **Blackjack** | The four left keys on the top row are the dealer's cards and the bottom row are yours. **DEAL** (top right) starts a hand; then **HIT** or **STAND**, or press the wide tile on your first two cards to **double** (twice the bet, one more card). The bottom-right key picks a bet of 1, 2, 5 or 10 coins. The dealer draws to 16 and stands on 17. Blackjack pays 3:2 |
 | 🂡 **Poker duel** | Five-card draw against the computer. **The top row is your opponent** (the first two cards are face up) and **the bottom row is you**. Before a hand, pick a bet (1, 2, 5 or 10) on the bottom row and press **DEAL**. **Tap your own cards to hold them**, then press the **wide tile** to draw. The opponent draws too, then everything is revealed. A win pays even money, with a bonus for winning with a straight or better (straight 4x · flush 6 · full house 9 · four of a kind 25 · straight flush 50 · royal flush 250). Afterwards any key deals again with the same bet and the wide tile changes the bet |
-| 🎰 **Slots** | Press a side key (the lever) to spin three reels for 1 coin, then stop each with the **STOP** key below it. Three alike pays 50 for 7s, 30 diamonds, 15 stars, 10 bells, 6 lemons, 5 cherries; any two alike pays 2. You start with 20 coins (shared with blackjack and poker) and get 20 more if you run out |
+| 🏇 **Horse race** | **The top five keys join into one race track** and five horses run from the starting gate on the left to the finish line on the right. **The bottom row shows the runners** (number, name, odds). Tap horses on the bottom row to pick them (tap again to drop one). **The number of horses sets the bet type**: 1 horse is a **Win** bet (pick the winner), 2 is a **Quinella** (both finish 1st and 2nd, any order) or an **Exacta** (1st and 2nd in the order you picked; with two horses picked, a **Quinella ⇄ Exacta** switch appears on the top-left key) and 3 is a **Trio** (all three finish in the top 3, any order). While waiting, **bet chips** (1, 2, 5, 10 coins) float over the top-row track; tap one to set your stake, then press the **wide tile** to start after a 3-2-1 countdown. During the race the bottom row shows live positions and the wide tile commentates ("#3 Bolt takes the lead!", "Final stretch, neck and neck!"). Each horse has its own form swings and finishing kick, so lead changes are common. A winning bet pays **bet × odds**. Odds for every bet type and combination come from running each race card 1,200 times in advance, so a higher number means a longer shot. The odds on each horse card are its Win odds; the wide tile shows the odds for the combination you picked. Afterwards any key brings up the next race |
+| 🎰 **Slots** | Press a side key (the lever) to spin three reels for 1 coin, then stop each with the **STOP** key below it. Three alike pays 50 for 7s, 30 diamonds, 15 stars, 10 bells, 6 lemons, 5 cherries; any two alike pays 2. You start with 20 coins (shared with blackjack, poker and the horse race) and get 20 more if you run out |
 
 - Keys react **the moment you press**, not on release.
 - After a game, press the board to play again or the **middle button** for the menu. The middle button also quits a game in progress.

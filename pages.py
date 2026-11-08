@@ -384,7 +384,7 @@ def health_color(score: int) -> str:
 
 
 def page_device(m: MachineStat, ms, dry: dict, trash, armed: str | None) -> dict[int, Button]:
-    """윗줄: 건강·CPU·메모리·디스크·휴지통 / 아랫줄: CPU 상위 3 + [산출물 정리] [휴지통 비우기]."""
+    """윗줄: 건강·CPU·메모리·디스크·휴지통 / 아랫줄: CPU 상위 2 + [캐시 정리] [산출물 정리] [휴지통 비우기]."""
     p: dict[int, Button] = {i: Button(bg=BG) for i in range(10)}
     if not m.online:
         p[0] = Button(header=m.name, title="OFF", sub="연결 안 됨", bg=BG, accent=RED, border=RED)
@@ -407,11 +407,19 @@ def page_device(m: MachineStat, ms, dry: dict, trash, armed: str | None) -> dict
                       bg=BG, accent=YELLOW if trash[1] >= 1 else DIM)
     if not ms:
         return p
-    for i, (name, cpu) in enumerate(ms.top[:3]):
+    for i, (name, cpu) in enumerate(ms.top[:2]):
         alert = any(a.startswith(name) for a in ms.alerts)
         p[5 + i] = Button(header=f"CPU {i + 1}위", title=name, sub=f"{cpu:.0f}%", bg=BG,
                           accent=RED if alert else "#7aa2f7", border=RED if alert else None)
     # 실행 버튼 (길게 두 번)
+    if armed == "clean":
+        p[7] = Button(header="캐시·로그", title="정리?", sub="길게 한 번 더", bg=RED, fg="#16161e", header_fg="#16161e")
+    else:
+        if clean is not None:
+            csub = fmt_gb(clean)
+        else:
+            csub = "측정 중…" if dry.get("measuring") else "길게 2번: 정리"
+        p[7] = Button(header="캐시·로그", title="정리", sub=csub, bg="#1f2233", accent="#ff9e64", border="#ff9e64")
     if armed == "purge":
         p[8] = Button(header="빌드 산출물", title="정리?", sub="길게 한 번 더", bg=RED, fg="#16161e", header_fg="#16161e")
     else:
