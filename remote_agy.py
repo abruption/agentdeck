@@ -1,40 +1,39 @@
-"""agy(Antigravity CLI)를 쓰는 컴퓨터에서 할당량을 SSH 로 가져온다.
+"""Fetch Antigravity quota through its official read-only CLI over SSH.
 
-원격에는 아무것도 설치하지 않는다: 아래 REMOTE 스크립트를 ssh stdin 으로 넘겨 실행한다.
-토큰이 만료됐으면 `agy models` 를 한 번 실행해 agy 가 토큰을 갱신하게 한 뒤 재시도한다.
+No credential files or private endpoints are accessed by agentdeck. See
+docs/ANTIGRAVITY.md for the provisional payload contract and validation limits.
 """
 
 from __future__ import annotations
 
 import json
+import math
 import subprocess
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 
 from config import AGY_HOST
 
-HOST = AGY_HOST  # agy 를 쓰는 컴퓨터의 ssh 대상 (config.json agy.host), 없으면 비활성
+HOST = AGY_HOST
 
+# Keep the existing remote Python transport and installation search paths.
+# Version-gate before /usage: older CLIs could interpret slash commands as prompts.
 REMOTE = r'''
-import json, os, subprocess
-P = os.path.expanduser("~/.gemini/antigravity-cli/antigravity-oauth-token")
-URL = "https://daily-cloudcode-pa.googleapis.com/v1internal:retrieveUserQuotaSummary"
-def curl():
-    tok = json.load(open(P))["token"]["access_token"]
-    out = subprocess.run(["curl", "-s", "-m", "10", "-X", "POST", URL, "-H", "Authorization: Bearer " + tok,
-        "-H", "Content-Type: application/json", "-H", "User-Agent: antigravity", "-d", "{}"],
-        capture_output=True, text=True).stdout
-    d = json.loads(out)
-    if "error" in d:
-        raise RuntimeError(d["error"].get("status", "error"))
-    return d
+import os, re, subprocess, sys
+
+env = dict(os.environ, PATH=os.path.expanduser("~/.local/bin") + ":/opt/homebrew/bin:" + os.environ.get("PATH", ""))
 try:
-    d = curl()
-except Exception:
-    env = dict(os.environ, PATH=os.path.expanduser("~/.local/bin") + ":/opt/homebrew/bin:" + os.environ.get("PATH", ""))
-    subprocess.run(["agy", "models"], capture_output=True, timeout=60, env=env)  # 토큰 갱신 유도
-    d = curl()
-print(json.dumps(d))
+    version = subprocess.run(["agy", "--version"], stdin=subprocess.DEVNULL,
+        capture_output=True, text=True, timeout=10, env=env, check=True)
+    match = re.fullmatch(r"(?:agy\s+)?v?(\d+)\.(\d+)\.(\d+)\s*", version.stdout.strip())
+    if not match or tuple(map(int, match.groups())) < (1, 1, 11):
+        sys.exit(1)
+    result = subprocess.run(["agy", "-p", "/usage", "--output-format", "json"],
+        stdin=subprocess.DEVNULL, capture_output=True, text=True,
+        timeout=60, env=env, check=True)
+    sys.stdout.write(result.stdout)
+except (OSError, subprocess.SubprocessError, UnicodeError):
+    sys.exit(1)
 '''
 
 
@@ -46,29 +45,69 @@ class Bucket:
     reset: datetime | None
 
 
+def parse_quota(payload: object) -> list[Bucket] | None:
+    """Parse the provisional groups/buckets contract, failing closed on drift.
+
+    This shape still needs comparison with a real CLI response. Do not guess
+    wrappers or reinterpret ordinary headless token-count `usage` as quota.
+    Missing/disabled buckets are unavailable, never fabricated as zero.
+    """
+    if not isinstance(payload, dict) or "error" in payload:
+        return None
+    groups = payload.get("groups")
+    if not isinstance(groups, list):
+        return None
+    out = []
+    for group in groups:
+        if not isinstance(group, dict):
+            return None
+        if group.get("disabled") is True or group.get("enabled") is False:
+            continue
+        name, buckets = group.get("displayName"), group.get("buckets")
+        if not isinstance(name, str) or not name.strip() or not isinstance(buckets, list):
+            return None
+        for bucket in buckets:
+            if not isinstance(bucket, dict):
+                return None
+            if bucket.get("disabled") is True or bucket.get("enabled") is False:
+                continue
+            remaining = bucket.get("remainingFraction")
+            if remaining is None:
+                continue
+            if (isinstance(remaining, bool) or not isinstance(remaining, (int, float))
+                    or not 0 <= remaining <= 1 or not math.isfinite(remaining)):
+                return None
+            window = bucket.get("window")
+            if window not in ("5h", "weekly"):
+                return None
+            reset = bucket.get("resetTime")
+            if reset is not None:
+                if not isinstance(reset, str):
+                    return None
+                try:
+                    reset = datetime.fromisoformat(reset.replace("Z", "+00:00"))
+                    if reset.tzinfo is None:
+                        return None
+                    reset = reset.astimezone(timezone.utc)
+                except (ValueError, OverflowError):
+                    return None
+            out.append(Bucket(name, window, float(remaining), reset))
+    return out or None
+
+
 def agy_quota() -> list[Bucket] | None:
     if not HOST:
         return None
     try:
-        r = subprocess.run(
-            ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=5", HOST, "python3", "-"],
+        result = subprocess.run(
+            ["ssh", "-T", "-o", "BatchMode=yes", "-o", "ConnectTimeout=5",
+             HOST, "python3", "-"],
             input=REMOTE, capture_output=True, text=True, timeout=90,
+            check=True,
         )
-        d = json.loads(r.stdout)
-    except Exception:
+        return parse_quota(json.loads(result.stdout))
+    except (OSError, subprocess.SubprocessError, ValueError, UnicodeError):
         return None
-    out = []
-    for g in d.get("groups", []):
-        name = g.get("displayName", "")
-        for b in g.get("buckets", []):
-            reset = b.get("resetTime")
-            out.append(Bucket(
-                group=name,
-                window=b.get("window", "?"),
-                remaining=float(b.get("remainingFraction", 0)),
-                reset=datetime.fromisoformat(reset.replace("Z", "+00:00")) if reset else None,
-            ))
-    return out
 
 
 if __name__ == "__main__":

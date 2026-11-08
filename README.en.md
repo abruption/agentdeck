@@ -180,7 +180,9 @@ flowchart LR
 - The 13 key icons (196×196) and the wide tile (458×196) are sent together as **one ZIP**. Icon names are content hashes, so only changed tiles are redrawn.
 - The protocol implementation builds on [redphx/strmdck](https://github.com/redphx/strmdck) and [jcalado/companion-surface-d200](https://github.com/jcalado/companion-surface-d200).
 
-> ⚠️ The Codex and agy lookups use **undocumented internal endpoints**. They may change or stop working at any time. Check each service's terms and use them at your own risk.
+> ⚠️ The Codex lookup uses **undocumented internal endpoints**. They may change or stop working at any time. Check the service's terms and use it at your own risk.
+
+agy runs the official CLI command `agy -p /usage --output-format json` over SSH (CLI 1.1.11+). **JSON field compatibility is still awaiting live CLI verification.** See [requirements and validation limits](docs/ANTIGRAVITY.md).
 
 ## 🗺 Roadmap
 

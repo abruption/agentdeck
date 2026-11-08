@@ -150,7 +150,9 @@ cp config.example.json config.json
 ```
 
 > Claude 값은 Claude Code를 쓰는 동안에만 갱신돼요. 한동안 안 쓰면 마지막 값이 그대로 보여요.
-> ⚠️ Codex와 agy 조회는 공식 문서가 없는 내부 API를 써요. 언제든 바뀔 수 있습니다.
+> ⚠️ Codex 조회는 공식 문서가 없는 내부 API를 써요. 언제든 바뀔 수 있습니다.
+
+agy는 공식 CLI JSON 명령을 SSH로 실행해요. CLI 1.1.11 이상과 기존 로그인이 필요하고, 실패하면 한도를 표시하지 않아요. **실제 JSON 필드 호환성은 검증 대기 중**이며 [상세 안내](ANTIGRAVITY.md)를 확인하세요.
 
 ### 4.2 에이전트 작업 현황 (3페이지)
 

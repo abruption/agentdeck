@@ -1,0 +1,14 @@
+{
+  "groups": [
+    {"displayName": "Synthetic model A", "buckets": [
+      {"window": "5h", "remainingFraction": 0, "resetTime": "2030-01-01T12:00:00Z"},
+      {"window": "weekly", "remainingFraction": 0.75, "resetTime": "2030-01-07T21:00:00+09:00"}
+    ]},
+    {"displayName": "Synthetic model B", "buckets": [
+      {"window": "5h", "remainingFraction": 1, "resetTime": null},
+      {"window": "weekly", "remainingFraction": null},
+      {"window": "weekly"},
+      {"window": "weekly", "remainingFraction": 0, "disabled": true}
+    ]}
+  ]
+}
