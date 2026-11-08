@@ -2,10 +2,14 @@
 
 한국어: 기존 `agy.enabled` / `agy.host` 설정과 SSH·원격 Python 구조를 유지하고,
 공식 CLI의 읽기 전용 JSON 명령으로 한도를 조회합니다. 토큰 파일을 직접 읽거나
-내부 API로 자동 대체하지 않습니다. CLI와 원격 호스트가 없는 개발 환경에서
-작성했으므로 **실제 JSON 스키마와 버전 문자열은 아직 검증하지 못했습니다**.
-아래 fixture는 합성 예시이며 실제 CLI 출력의 증거가 아닙니다. 병합 전에
-인증된 설치에서 스키마와 5시간·주간 한도, 모델 그룹, 리셋 시각을 확인해야 합니다.
+내부 API로 자동 대체하지 않습니다. 사용자 제공 성공 스크린샷에서 확인한
+`status: SUCCESS`, `command.data.groups[].name`, `remaining_fraction`, `reset_time` 구조를
+반영했습니다. 이미지에는 동일 명령과 성공 상태가 보이며, 버전과 종료 코드는
+보이지 않습니다. 버전은 별도 실행으로 확인했습니다.
+Mac에서 agy 1.5.3은 확인했지만 자동 실행 두 번은 모두 exit 1이었습니다.
+첫 실행은 stdout이 비었고 후속 실행은 JSON 파싱이 가능했으나 실패 원인은
+미확정입니다. 스크린샷 구조 증거와 자동 실행 성공 검증은 다릅니다.
+fixture의 모든 값은 합성이며 사용자 출력·이미지는 저장하거나 게시하지 않습니다.
 
 ## Interface and requirements
 
@@ -33,16 +37,29 @@ The [/usage reference](https://antigravity.google/docs/cli/commands/usage/)
 describes model quotas; the [headless reference](https://antigravity.google/docs/cli/headless/)
 also describes ordinary agent token-count `usage`, which is **not** quota.
 
-## Provisional parser contract — merge blocker
+## Screenshot-derived parser contract — end-to-end validation pending
 
-The public docs reviewed do not specify quota JSON fields. The draft parser
-retains the existing `groups[].displayName` / `groups[].buckets[]` field shape
-as a **hypothesis**, not as a verified official CLI schema. It accepts no guessed
-wrapper or text-report fallback. A different actual response will yield `None`.
-`tests/fixtures/agy_quota.json` is entirely synthetic, not captured personal data.
+The user-provided success screenshot shows root `status: "SUCCESS"` and
+`command.data.groups`, alongside `command.name` and `command.data.description`,
+with group `name` / `description` / `buckets` and bucket `id` / `name` / `window` /
+`remaining_fraction` / `reset_time`. This replaces the earlier camelCase hypothesis.
+The screenshot directly shows `agy -p /usage --output-format json` and SUCCESS.
+It does not show a CLI version or exit code; version 1.5.3 was confirmed separately.
+This is field-structure evidence, not a successful automated collector run.
+`tests/fixtures/agy_quota.json` uses those field names with entirely synthetic
+values; the screenshot and personal response were not committed.
 
-Each bucket has `window` (`5h` or `weekly`), a numeric `remainingFraction` in
-[0, 1], and optional/null `resetTime`. Zero is exhausted, not missing. Missing or
+The parser requires root `status == "SUCCESS"`, no `error` key, and a `command.data.groups` list. Root-level groups are not a fallback.
+It ignores unrelated `conversation_id`, `response`, `duration_seconds`,
+`num_turns`, and `usage` metadata rather than requiring them. In
+particular, response text and token usage are never alternate quota sources.
+Command name/description, group descriptions and bucket IDs/names are not needed by the existing Bucket
+interface and may be omitted. Group names, bucket lists and known windows are
+validated. These sparse/disabled-value policies are defensive adapter behavior,
+not claims that every such variation appeared in the screenshot.
+
+Each bucket has `window` (`5h` or `weekly`), a numeric `remaining_fraction` in
+[0, 1], and optional/null `reset_time`. Zero is exhausted, not missing. Missing or
 null fractions, `disabled: true`, and `enabled: false` are omitted. An empty usable
 result is unavailable. Invalid fractions, unknown windows, malformed structure,
 and invalid or timezone-naive reset values invalidate the result. Aware reset
@@ -68,9 +85,14 @@ Before considering the draft ready:
 network, SSH, CLI authentication, or hardware. It exercises parsing and both
 subprocess layers (the remote script is executed with a mocked `subprocess.run`).
 
-In the development environment, `agy` and a configured remote host were absent.
+Automated macOS checks confirmed agy 1.5.3. The first /usage invocation exited 1
+with empty stdout; one subsequent invocation also exited 1 but its stdout parsed
+as JSON. JSON parseability does not mean success. The cause is undetermined;
+workspace trust, permissions and authentication are not established diagnoses.
+Nonzero exits are rejected even if stdout contains valid JSON. The separate
+success screenshot supplies the schema evidence described above.
 `python -B demo.py <output-directory>` was attempted but stopped at
 `ModuleNotFoundError: No module named 'hid'`; no dependency was installed.
-Full demo rendering, native macOS behavior, live CLI/SSH and D200 hardware remain
-unverified. The repository did not have a GitHub Actions workflow at the base
+Full demo rendering, successful automated quota retrieval, end-to-end macOS
+dashboard behavior, actual SSH execution and D200 hardware remain unverified. The repository did not have a GitHub Actions workflow at the base
 commit; local test success is not CI success.

@@ -1,7 +1,7 @@
 """Fetch Antigravity quota through its official read-only CLI over SSH.
 
 No credential files or private endpoints are accessed by agentdeck. See
-docs/ANTIGRAVITY.md for the provisional payload contract and validation limits.
+docs/ANTIGRAVITY.md for the screenshot-derived payload contract and validation limits.
 """
 
 from __future__ import annotations
@@ -46,15 +46,22 @@ class Bucket:
 
 
 def parse_quota(payload: object) -> list[Bucket] | None:
-    """Parse the provisional groups/buckets contract, failing closed on drift.
+    """Parse screenshot-observed quota fields, failing closed on drift.
 
-    This shape still needs comparison with a real CLI response. Do not guess
-    wrappers or reinterpret ordinary headless token-count `usage` as quota.
+    Require SUCCESS and command.data.groups; agent metadata is ignored.
+    Never reinterpret response text or token-count `usage` as quota.
     Missing/disabled buckets are unavailable, never fabricated as zero.
     """
-    if not isinstance(payload, dict) or "error" in payload:
+    if (not isinstance(payload, dict) or payload.get("status") != "SUCCESS"
+            or "error" in payload):
         return None
-    groups = payload.get("groups")
+    command = payload.get("command")
+    if not isinstance(command, dict):
+        return None
+    data = command.get("data")
+    if not isinstance(data, dict):
+        return None
+    groups = data.get("groups")
     if not isinstance(groups, list):
         return None
     out = []
@@ -63,7 +70,7 @@ def parse_quota(payload: object) -> list[Bucket] | None:
             return None
         if group.get("disabled") is True or group.get("enabled") is False:
             continue
-        name, buckets = group.get("displayName"), group.get("buckets")
+        name, buckets = group.get("name"), group.get("buckets")
         if not isinstance(name, str) or not name.strip() or not isinstance(buckets, list):
             return None
         for bucket in buckets:
@@ -71,7 +78,7 @@ def parse_quota(payload: object) -> list[Bucket] | None:
                 return None
             if bucket.get("disabled") is True or bucket.get("enabled") is False:
                 continue
-            remaining = bucket.get("remainingFraction")
+            remaining = bucket.get("remaining_fraction")
             if remaining is None:
                 continue
             if (isinstance(remaining, bool) or not isinstance(remaining, (int, float))
@@ -80,7 +87,7 @@ def parse_quota(payload: object) -> list[Bucket] | None:
             window = bucket.get("window")
             if window not in ("5h", "weekly"):
                 return None
-            reset = bucket.get("resetTime")
+            reset = bucket.get("reset_time")
             if reset is not None:
                 if not isinstance(reset, str):
                     return None

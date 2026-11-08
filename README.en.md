@@ -182,7 +182,7 @@ flowchart LR
 
 > ⚠️ The Codex lookup uses **undocumented internal endpoints**. They may change or stop working at any time. Check the service's terms and use it at your own risk.
 
-agy runs the official CLI command `agy -p /usage --output-format json` over SSH (CLI 1.1.11+). **JSON field compatibility is still awaiting live CLI verification.** See [requirements and validation limits](docs/ANTIGRAVITY.md).
+agy runs the official CLI command `agy -p /usage --output-format json` over SSH (CLI 1.1.11+). **The parser follows a user-provided success screenshot; successful automated CLI execution remains unverified.** See [requirements and validation limits](docs/ANTIGRAVITY.md).
 
 ## 🗺 Roadmap
 

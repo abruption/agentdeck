@@ -1,14 +1,70 @@
 {
-  "groups": [
-    {"displayName": "Synthetic model A", "buckets": [
-      {"window": "5h", "remainingFraction": 0, "resetTime": "2030-01-01T12:00:00Z"},
-      {"window": "weekly", "remainingFraction": 0.75, "resetTime": "2030-01-07T21:00:00+09:00"}
-    ]},
-    {"displayName": "Synthetic model B", "buckets": [
-      {"window": "5h", "remainingFraction": 1, "resetTime": null},
-      {"window": "weekly", "remainingFraction": null},
-      {"window": "weekly"},
-      {"window": "weekly", "remainingFraction": 0, "disabled": true}
-    ]}
-  ]
+  "status": "SUCCESS",
+  "conversation_id": "synthetic-conversation",
+  "response": "Synthetic report; not parsed as quota",
+  "duration_seconds": 0.01,
+  "num_turns": 0,
+  "usage": {
+    "input_tokens": 0,
+    "output_tokens": 0
+  },
+  "command": {
+    "name": "/usage",
+    "data": {
+      "description": "Synthetic quota report",
+      "groups": [
+        {
+          "name": "Synthetic model A",
+          "buckets": [
+            {
+              "window": "5h",
+              "remaining_fraction": 0,
+              "reset_time": "2030-01-01T12:00:00Z",
+              "id": "synthetic-0-0",
+              "name": "Synthetic quota bucket"
+            },
+            {
+              "window": "weekly",
+              "remaining_fraction": 0.75,
+              "reset_time": "2030-01-07T21:00:00+09:00",
+              "id": "synthetic-0-1",
+              "name": "Synthetic quota bucket"
+            }
+          ],
+          "description": "Synthetic group description"
+        },
+        {
+          "name": "Synthetic model B",
+          "buckets": [
+            {
+              "window": "5h",
+              "remaining_fraction": 1,
+              "reset_time": null,
+              "id": "synthetic-1-0",
+              "name": "Synthetic quota bucket"
+            },
+            {
+              "window": "weekly",
+              "remaining_fraction": null,
+              "id": "synthetic-1-1",
+              "name": "Synthetic quota bucket"
+            },
+            {
+              "window": "weekly",
+              "id": "synthetic-1-2",
+              "name": "Synthetic quota bucket"
+            },
+            {
+              "window": "weekly",
+              "remaining_fraction": 0,
+              "disabled": true,
+              "id": "synthetic-1-3",
+              "name": "Synthetic quota bucket"
+            }
+          ],
+          "description": "Synthetic group description"
+        }
+      ]
+    }
+  }
 }

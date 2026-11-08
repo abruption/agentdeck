@@ -182,7 +182,7 @@ flowchart LR
 
 > ⚠️ Codex 한도 조회는 **공식 문서가 없는 내부 API**를 씁니다. 언제든 바뀌거나 막힐 수 있으니, 각 서비스 약관을 확인하고 본인 책임 아래 사용하세요.
 
-agy는 SSH로 공식 CLI의 `agy -p /usage --output-format json`을 호출합니다(CLI 1.1.11 이상). **현재 JSON 필드 호환성은 실제 CLI 검증 대기 중입니다.** [요구사항과 검증 범위](docs/ANTIGRAVITY.md)를 확인하세요.
+agy는 SSH로 공식 CLI의 `agy -p /usage --output-format json`을 호출합니다(CLI 1.1.11 이상). **사용자 성공 스크린샷의 JSON 구조를 반영했으며, 자동 CLI 실행 성공 검증은 대기 중입니다.** [요구사항과 검증 범위](docs/ANTIGRAVITY.md)를 확인하세요.
 
 ## 🗺 로드맵
 
