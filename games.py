@@ -543,6 +543,141 @@ def race_track(pos: list[float], frame: int, gate: bool = False, mine: tuple[int
     return [_png(img.crop((k * SIZE, 0, (k + 1) * SIZE, SIZE))) for k in range(5)]
 
 
+# 경주 중 큰 화면: 위 10칸(두 줄) 또는 아래 줄 버튼·넓은 칸까지 화면 전체(세 줄). 칸 사이 테두리 폭까지 계산해 선이 이어지게
+CAM_GAP = 40  # 칸 사이 테두리를 화면 픽셀로 환산한 폭 (대략값)
+PITCH = SIZE + CAM_GAP  # 칸 하나 + 테두리
+WIDE_X = 3 * PITCH  # 넓은 칸이 시작하는 x (아래 줄 네 번째 칸 자리)
+CAM_W = max(SIZE * 5 + CAM_GAP * 4, WIDE_X + WIDE[0])
+CAM_SPAN = 0.22  # 슬로우 모션 화면 가로에 보이는 경주 거리 (전체 = 1)
+CAM_START = 0.9  # 선두가 이 지점을 지나면 슬로우 모션 시작
+CAM_SPEED = 0.3  # 슬로우 모션 속도 (1 = 보통)
+CAM_FINISH_AT = (3 * PITCH + SIZE / 2) / CAM_W  # 카메라가 멈췄을 때 결승선 위치: 4번째 열 한가운데 (테두리에 걸리지 않게)
+RUN_LEFT, RUN_SPAN = -0.13, 1.265  # 두 줄 화면: 출발 게이트부터 결승선(5번째 열 가운데)까지 한눈에
+# 줄 수별 배치: (화면 높이, 관중석 높이, 첫 레인 y, 레인 간격, 말 크기)
+VIEW = {2: (SIZE * 2 + CAM_GAP, 64, 140, 64, 84), 3: (SIZE * 3 + CAM_GAP * 2, 96, 222, 100, 150)}
+
+
+@lru_cache(maxsize=1)
+def _cam_crowd() -> Image.Image:
+    rnd = random.Random(3)
+    img = Image.new("RGB", (CAM_W * 2, 100), (26, 30, 46))
+    d = ImageDraw.Draw(img)
+    for _ in range(1300):
+        x, y = rnd.randrange(img.width), rnd.randrange(6, 96)
+        r = rnd.randrange(4, 8)
+        d.ellipse((x - r, y - r, x + r, y + r), fill=rnd.choice([(247, 118, 142), (122, 162, 247), (224, 175, 104),
+                                                                  (158, 206, 106), (235, 235, 245), (187, 154, 247)]))
+    return img
+
+
+def race_view(pos: list[float], cam_left: float, span: float, rows: int, anim: int, mine: tuple[int, ...],
+              gate: bool = False, flash: float = 0.0, winner: int | None = None, caption: str = "",
+              label: str = "") -> Image.Image:
+    """경주로를 큰 화면 하나로 그린다 (칸 사이 테두리 포함 좌표)."""
+    H, crowd_h, lane0, lane_dy, hsize = VIEW[rows]
+    lanes = [lane0 + k * lane_dy for k in range(5)]
+    sc = CAM_W / span
+    wx = lambda p: (p - cam_left) * sc  # noqa: E731  경주 위치 → 화면 x
+    img = Image.new("RGB", (CAM_W, H), (176, 128, 82))
+    d = ImageDraw.Draw(img)
+    crowd = _cam_crowd()
+    off = int(cam_left * sc * 0.35) % (crowd.width - CAM_W)  # 관중석은 천천히 흘러간다 (원근감)
+    img.paste(crowd.crop((off, 100 - crowd_h, off + CAM_W, 100)), (0, 0))
+    if anim % 2:  # 관중석 카메라 플래시
+        rnd = random.Random(anim)
+        for _ in range(16):
+            x, y = rnd.randrange(CAM_W), rnd.randrange(8, crowd_h - 6)
+            d.ellipse((x - 4, y - 4, x + 4, y + 4), fill=(255, 255, 230))
+    d.rectangle((0, crowd_h, CAM_W, crowd_h + 14), fill=(240, 240, 245))  # 안쪽 난간
+    step = 0.01 if span < 0.5 else 0.05
+    for k in range(int(cam_left / step) - 1, int((cam_left + span) / step) + 2):  # 난간 기둥 (거리감)
+        x = wx(k * step)
+        d.rectangle((x, crowd_h, x + 6, crowd_h + 26), fill=(220, 220, 228))
+    rnd = random.Random(int(cam_left * 400) + rows)
+    for _ in range(int(CAM_W * H / 2400)):  # 흙 질감
+        x, y = rnd.randrange(CAM_W), rnd.randrange(crowd_h + 26, H - 20)
+        d.ellipse((x, y, x + 3, y + 2), fill=(150, 104, 64))
+    for y in lanes:
+        d.line((0, y + 6, CAM_W, y + 6), fill=(160, 114, 72), width=3)
+    d.rectangle((0, H - 18, CAM_W, H), fill=(240, 240, 245))  # 바깥 난간
+    fx = wx(1.0)  # 결승선
+    if -40 < fx < CAM_W + 40:
+        sq = 16 if rows == 3 or span < 0.5 else 12
+        for y in range(crowd_h + 14, H - 18, sq):
+            for c in range(2):
+                d.rectangle((fx + c * sq, y, fx + c * sq + sq - 1, y + sq - 1),
+                            fill=(20, 20, 24) if (y // sq + c) % 2 else (245, 245, 245))
+        d.rectangle((fx + sq // 2, 0, fx + sq + sq // 2, crowd_h + 14), fill=(230, 60, 70))
+    if gate:  # 출발 게이트
+        gx = wx(0.0) + 8
+        d.rectangle((gx, crowd_h + 10, gx + 14, H - 16), fill=(90, 94, 110))
+        for y in lanes:
+            d.rectangle((gx, y - lane_dy + 10, gx + 14, y + 4), fill=(200, 204, 214))
+    for i in range(5):  # 위 레인부터 그려서 아래(앞쪽) 말이 위에 겹치게
+        x, y = wx(min(pos[i], 1.06)), lanes[i]
+        if x < -hsize * 1.5 or x > CAM_W + hsize * 1.5:
+            continue
+        run = 0.0 < pos[i] < 1.06
+        big = hsize / 84
+        if run:
+            for k in range(4):  # 속도선
+                ly = y - hsize * 0.28 - k * hsize * 0.12
+                ln = (40 + ((anim + i + k) % 3) * 22) * big
+                d.line((x - hsize - ln, ly, x - hsize, ly), fill=(214, 182, 146), width=max(2, int(3 * big)))
+            for k in range(4):  # 흙먼지
+                r = (10 - k * 2) * big
+                dx = hsize * 1.25 + (k * 18 + ((anim + i + k) % 3) * 6) * big
+                d.ellipse((x - dx - r, y - 6 - r - k * 4, x - dx + r, y - 6 + r - k * 4), fill=(222, 190, 150))
+        hop = (int(-5 * big) if (anim + i) % 2 else int(2 * big)) if run else 0
+        h = _horse(hsize, (anim + i) % 2 if run else 0)
+        img.paste(h, (int(x - h.width), int(y - h.height + hsize * 0.1 + hop)), h)
+        br = int(15 * big) + 2
+        bx, by = int(x - h.width - br + 4), int(y - hsize * 0.28 + hop)
+        if i in mine:
+            d.ellipse((bx - br - 5, by - br - 5, bx + br + 5, by + br + 5), fill=(250, 210, 60))
+        d.ellipse((bx - br, by - br, bx + br, by + br), fill=_rgb(HORSE_COLORS[i]), outline=(25, 25, 30), width=2)
+        d.text((bx, by + 1), str(i + 1), font=_kr(int(br * 1.3), 6), fill=(20, 20, 28), anchor="mm")
+        if winner == i:
+            _paste_center(img, _emoji("👑", int(br * 2.4)), bx - int(br * 2.5), by)
+    if span < 0.5:  # 슬로우 모션: 가장자리를 어둡게 (집중 효과)
+        vig = Image.new("L", (CAM_W, H), 0)
+        vd = ImageDraw.Draw(vig)
+        for k in range(12):
+            vd.rectangle((k * 6, k * 4, CAM_W - k * 6, H - k * 4), outline=150 - k * 12, width=6)
+        img = Image.composite(Image.new("RGB", img.size, (10, 10, 14)), img, vig)
+    if flash > 0:
+        img = Image.blend(img, Image.new("RGB", img.size, (255, 255, 255)), min(1.0, flash))
+    if rows == 3:  # 아래 줄: 왼쪽 칸에 슬로우 모션 표시, 넓은 칸 자리에 중계 자막
+        d = _Draw(img)
+        y0 = 2 * PITCH
+        if label and (anim % 10 < 6 or winner is not None):
+            d.rounded_rectangle((14, y0 + 120, 182, y0 + 168), 12, fill=(230, 60, 70))
+            d.text((98, y0 + 144), label, font=_kr(24, 6), fill=(255, 255, 255), anchor="mm")
+        if caption:
+            box = Image.new("RGBA", (WIDE[0] - 20, 64), (12, 12, 18, 190))
+            img.paste(box, (WIDE_X + 10, y0 + WIDE[1] - 78), box)
+            size = 30
+            while size > 18 and d.textlength(caption, font=_kr(size, 6)) > WIDE[0] - 40:
+                size -= 2
+            d.text((WIDE_X + WIDE[0] // 2, y0 + WIDE[1] - 46), caption, font=_kr(size, 6), fill=(255, 236, 140),
+                   anchor="mm")
+    return img
+
+
+def view_split(img: Image.Image, rows: int) -> tuple[dict[int, bytes], bytes | None]:
+    """큰 화면을 칸별 PNG 로 자르기 (테두리 자리는 버린다). 세 줄이면 아래 줄 세 칸과 넓은 칸까지."""
+    tiles = {}
+    for r in range(2):
+        for c in range(5):
+            tiles[r * 5 + c] = _png(img.crop((c * PITCH, r * PITCH, c * PITCH + SIZE, r * PITCH + SIZE)))
+    if rows < 3:
+        return tiles, None
+    y = 2 * PITCH
+    for c in range(3):
+        tiles[10 + c] = _png(img.crop((c * PITCH, y, c * PITCH + SIZE, y + SIZE)))
+    return tiles, _png(img.crop((WIDE_X, y, WIDE_X + WIDE[0], y + WIDE[1])))
+
+
 @lru_cache(maxsize=64)
 def horse_card(no: int, name: str, odds: float, state: str = "", sub: str = "") -> bytes:
     """아랫줄 말 카드. state: '' | mine(고른 말) | win(우승) | mine_win | dim"""
@@ -662,6 +797,11 @@ class Games:
         self.race_frames: list[list[float]] = []
         self.race_order: list[int] = []
         self.race_start = 0.0
+        self.race_t = 0.0  # 경주 시간 (장면 단위, 소수점 = 장면 사이 보간). 슬로우 모션 때 느리게 흐른다
+        self.race_last = 0.0
+        self.race_cam = ""  # "" | slow(결승 근접 슬로우) | hold(결승 직후 잠깐 멈춤) | after(보통 화면으로 복귀)
+        self.race_cam_at = 0.0
+        self.race_cam_left = 0.0
         self.race_lead: tuple[int, float] = (-1, 0.0)  # (선두 말, 선두가 바뀐 시각)
         self._race_tiles: tuple[tuple, list[bytes]] | None = None
 
@@ -1001,6 +1141,7 @@ class Games:
         self._save_coins()
         self.race_frames, self.race_order = race_sim(self.race_power, self.rnd)
         self.phase, self.race_start = "gate", now + 1.5  # 1.5초 출발 대기 (3·2·1)
+        self.race_t, self.race_cam, self.race_cam_left = 0.0, "", 0.0
 
     def race_hit(self) -> bool:
         n = len(self.race_pick)
@@ -1014,7 +1155,16 @@ class Games:
             return 0
         if self.phase == "done":
             return len(self.race_frames) - 1
-        return max(0, min(len(self.race_frames) - 1, int((now - self.race_start) * RACE_FPS)))
+        return max(0, min(len(self.race_frames) - 1, int(self.race_t)))
+
+    def race_pos(self) -> list[float]:
+        """지금 경주 시간의 말 위치 (장면 사이를 보간해 슬로우 모션도 부드럽게)."""
+        fr = self.race_frames
+        if self.phase != "run":
+            return fr[self.race_frame()]
+        i = min(int(self.race_t), len(fr) - 1)
+        j, a = min(i + 1, len(fr) - 1), self.race_t - int(self.race_t)
+        return [p + (q - p) * a for p, q in zip(fr[i], fr[j])]
 
     def _race_settle(self, now: float) -> None:
         pay = int(self.bet_now * self.race_bet_odds()) if self.race_hit() else 0
@@ -1091,10 +1241,23 @@ class Games:
                     self.open = []
             elif self.mode == "race":
                 if self.phase == "gate" and now >= self.race_start:
-                    self.phase = "run"
+                    self.phase, self.race_t, self.race_last = "run", 0.0, now
                 if self.phase == "run":
+                    speed = {"slow": CAM_SPEED, "hold": 0.0}.get(self.race_cam, 1.0)
+                    self.race_t += (now - self.race_last) * RACE_FPS * speed
+                    self.race_last = now
                     f = self.race_frame(now)
-                    pos = self.race_frames[f]
+                    pos = self.race_pos()
+                    need = min(5, max(2, len(self.race_pick)))  # 승식에 필요한 착순까지 들어오면 슬로우 끝
+                    if self.race_cam == "" and max(pos) >= CAM_START:
+                        self.race_cam, self.race_cam_at = "slow", now
+                        self.race_cam_left = max(pos) - CAM_SPAN * 0.62
+                    elif self.race_cam == "slow":
+                        self.race_cam_left = max(self.race_cam_left, min(max(pos) - CAM_SPAN * 0.62, 1.0 - CAM_SPAN * CAM_FINISH_AT))
+                        if sorted(pos)[-need] >= 1.0:
+                            self.race_cam, self.race_cam_at = "hold", now
+                    elif self.race_cam == "hold" and now - self.race_cam_at > 0.9:
+                        self.race_cam = "after"
                     lead = max(range(5), key=lambda i: pos[i])
                     if lead != self.race_lead[0]:
                         self.race_lead = (lead, now)
@@ -1224,6 +1387,8 @@ class Games:
         return sorted(range(5), key=lambda i: -pos[i])
 
     def _race_tiles_now(self, now: float) -> dict[int, bytes]:
+        if self.phase in ("gate", "run"):
+            return self._race_big(now)[0]
         f = self.race_frame(now)
         blink = self.phase == "done" and now < self.win_until and int(now * 5) % 2 == 0
         picks = tuple(self.race_pick)
@@ -1261,8 +1426,48 @@ class Games:
         self._race_tiles = (key, tiles)
         return dict(enumerate(tiles))
 
+    @property
+    def fullscreen(self) -> bool:
+        """경마 슬로우 모션: 아래 줄 버튼·넓은 칸까지 화면 전체를 쓰는 중 (대시보드가 아래 줄을 게임에 넘긴다)."""
+        return self.mode == "race" and self.phase == "run" and self.race_cam in ("slow", "hold")
+
+    def _race_big(self, now: float) -> tuple[dict[int, bytes], bytes | None]:
+        """출발 대기·경주 중 큰 화면. 보통은 위 두 줄, 결승 직전 슬로우 모션은 화면 전체 (초당 5장면만 새로 그림)."""
+        full = self.fullscreen
+        picks = tuple(self.race_pick)
+        key = ("big", int(now * 5), self.phase, self.race_cam, picks)
+        if self._race_tiles and self._race_tiles[0] == key:
+            return self._race_tiles[1]
+        pos = self.race_pos()
+        if full:
+            hold = self.race_cam == "hold"
+            # 들어갈 때 번쩍 → 슬로우 모션, 결승 통과 순간엔 카메라 셔터처럼 번쩍하고 멈춘 사진 (사진 판정)
+            flash = max(0.0, (0.8 if hold else 0.9) - (now - self.race_cam_at) * (4 if hold else 3))
+            anim = int(self.race_cam_at * 5) if hold else int(now * 5)
+            img = race_view(pos, self.race_cam_left, CAM_SPAN, 3, anim, picks, flash=flash,
+                            winner=self.race_order[0] if hold else None, caption=self._race_caption(pos),
+                            label="사진 판정" if hold else "슬로우 모션")
+            out = view_split(img, 3)
+        else:
+            img = race_view(pos, RUN_LEFT, RUN_SPAN, 2, int(now * 5), picks, gate=self.phase == "gate")
+            out = view_split(img, 2)
+        self._race_tiles = (key, out)
+        return out
+
+    def _race_caption(self, pos: list[float]) -> str:
+        ranks = sorted(range(5), key=lambda i: -pos[i])
+        if self.race_cam == "hold":
+            w = self.race_order[0]
+            return f"{w + 1}번 {self.race_names[w]} 결승선 통과!"
+        gap = pos[ranks[0]] - pos[ranks[1]]
+        return f"{ranks[0] + 1}번 · {ranks[1] + 1}번 코 차이 접전!" if gap < 0.012 else f"{ranks[0] + 1}번 {self.race_names[ranks[0]]}, 결승선이 눈앞!"
+
     def _race_wide(self) -> bytes:
         now = time.time()
+        if self.fullscreen:
+            wide = self._race_big(now)[1]
+            if wide:
+                return wide
         picks = self.race_pick
         n = len(picks)
         kind = self.race_kind()
@@ -1285,6 +1490,18 @@ class Games:
         ranks = self._race_ranks(f)
         order = " · ".join(str(i + 1) for i in ranks)
         mine = "·".join(str(ranks.index(i) + 1) for i in sorted(picks, key=ranks.index))
+        if self.phase == "run" and self.race_cam in ("slow", "hold"):
+            pos = self.race_pos()
+            ranks = sorted(range(5), key=lambda i: -pos[i])
+            mine = "·".join(str(ranks.index(i) + 1) for i in sorted(picks, key=ranks.index))
+            top = " · ".join(f"{i + 1}번" for i in ranks[:3])
+            if self.race_cam == "hold":
+                w = self.race_order[0]
+                return wide_panel(f"{w + 1}번 {self.race_names[w]} 결승선 통과!", f"{mine}위", [f"선두 {top}", f"{kind} {nums}번"],
+                                  "#e0af68")
+            gap = pos[ranks[0]] - pos[ranks[1]]
+            head = "결승선 앞, 코 차이 접전!" if gap < 0.012 else "결승선이 눈앞!"
+            return wide_panel(head, f"{mine}위", [f"선두 {top}", f"{kind} {nums}번"], "#f7768e")
         if self.phase == "run":
             pos = self.race_frames[f]
             lead = ranks[0]
@@ -1394,4 +1611,5 @@ class Games:
                     any(self.spinning), now < self.win_until, now < self.peek_until, len(self.matched),
                     len(self.player), len(self.dealer), self.hole, self.result, self.bet, tuple(self.held),
                     tuple(self.hand), tuple(self.opp), tuple(self.race_pick), self.race_frame(now) if self.mode == "race" else 0,
-                    math.ceil(self.race_start - now) if self.phase == "gate" else 0, tuple(self.race_names))
+                    math.ceil(self.race_start - now) if self.phase == "gate" else 0, tuple(self.race_names),
+                    self.race_cam)

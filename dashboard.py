@@ -154,7 +154,8 @@ class Dashboard:
             return
         if ev.action == "press":
             self.pressed_at[ev.index] = time.time()
-            if self.page == GAME_PAGE and (ev.index < 10 or ev.index >= 13):  # 게임은 누르는 순간 처리
+            if self.page == GAME_PAGE and (ev.index < 10 or ev.index >= 13 or self.games.fullscreen):  # 게임은 누르는 순간 처리
+                # (화면 전체 연출 중엔 아래 줄 버튼도 게임 화면이라 페이지 넘김을 막는다)
                 self.last_input = time.time()
                 self.game_handled.add(ev.index)
                 self.games.press(ev.index)
@@ -397,10 +398,13 @@ class Dashboard:
     def render_game(self) -> None:
         with self.render_lock:
             try:
+                t0 = time.time()
                 body = {i: Button(image=p) for i, p in self.games.tiles().items()}
                 middle = ("메뉴", "게임 그만") if self.games.mode != "menu" else None
-                self.deck.set_buttons({**body, **nav(GAME_PAGE, PAGES, self.brightness, middle)},
+                self.deck.set_buttons({**nav(GAME_PAGE, PAGES, self.brightness, middle), **body},  # 게임이 아래 줄까지 그리면 그걸 쓴다
                                       small_png=self.games.wide())
+                if time.time() - t0 > 0.4:  # 느린 장면 기록 (버벅임 진단용)
+                    print(f"{datetime.now():%H:%M:%S} slow game frame {self.games.mode}: {time.time() - t0:.2f}s", flush=True)
             except Exception as e:
                 print(f"{datetime.now():%H:%M:%S} game render error: {e}", flush=True)
 

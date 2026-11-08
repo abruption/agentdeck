@@ -14,6 +14,8 @@ from datetime import datetime, timedelta, timezone
 
 from PIL import Image, ImageDraw, ImageFilter
 
+os.environ["AGENTDECK_DEMO"] = "1"  # 데모 이미지에는 기본 기능만 (로컬 확장은 빼기)
+
 import i18n
 import pages
 import remote_herdr
@@ -165,7 +167,7 @@ def game_gif(path: str) -> None:
 
     def snap(dur: int, middle=("메뉴", "게임 그만")) -> None:
         body = {i: Button(image=p) for i, p in g.tiles().items()}
-        frames.append(device_mockup({**body, **nav(7, 8, 80, middle)}, g.wide(), 0.5))
+        frames.append(device_mockup({**nav(7, 8, 80, middle), **body}, g.wide(), 0.5))  # 게임이 아래 줄까지 쓰면 그대로
         ms.append(dur)
 
     g.menu()
@@ -247,13 +249,31 @@ def game_gif(path: str) -> None:
     g.race_pick = [2, 0]
     snap(1300)
     g.phase, g.race_frames, g.race_order, g.bet_now = "gate", race, order, 5
-    g.race_start = _t.time() + 1
+    g.race_start, g.race_t = _t.time() + 1, 0.0
     snap(700)
-    for f in range(0, len(race), 2):
-        g.phase, g.race_start = "run", _t.time() - f / games.RACE_FPS
+    g.phase, g.race_cam = "run", ""
+    f = 0
+    while max(race[f]) < games.CAM_START:  # 보통 화면으로 달리다가
+        g.race_t = float(f)
         lead = max(range(5), key=lambda i: race[f][i])
         g.race_lead = (lead, g.race_lead[1] if g.race_lead[0] == lead else _t.time())
         snap(300)
+        f += 2
+    # 결승 직전: 위 10칸 전체가 슬로우 모션 화면으로
+    g.race_t, g.race_cam = float(f), "slow"
+    g.race_cam_left = max(g.race_pos()) - games.CAM_SPAN * 0.62
+    k = 0
+    while sorted(g.race_pos())[-2] < 1.0:
+        g.race_cam_at = _t.time() - (0 if k == 0 else 9)  # 첫 장면만 번쩍
+        pos = g.race_pos()
+        g.race_cam_left = max(g.race_cam_left, min(max(pos) - games.CAM_SPAN * 0.62,
+                                                   1.0 - games.CAM_SPAN * games.CAM_FINISH_AT))
+        snap(220)
+        g.race_t += 0.3
+        k += 1
+    g.race_cam, g.race_cam_at = "hold", _t.time() - 9  # 사진 판정 (멈춘 장면)
+    snap(1500)
+    g.race_cam = "after"
     pay = int(5 * g.race_bet_odds())
     g.coins += pay
     g.phase, g.win, g.win_until = "done", pay - 5, 0
